@@ -1,13 +1,13 @@
 ---
 name: replicate-macos-app
-description: Build a complete, independently runnable reference implementation of a closed-source macOS app, with privately controlled source for later Computer Use recreation evaluation. Use for macOS App 复刻、全功能复刻、闭源软件重建、参考应用构造 and setup-only requests. Choose and combine any suitable investigation and implementation methods, including GUI/AX automation, REA, static or dynamic analysis, state and protocol inspection, custom tools and human evidence. Requires local macOS for original-app exploration and execution.
+description: Rebuild a closed-source macOS app as a complete, independently buildable and runnable app with full source code. Use for macOS App 复刻、全功能复刻、闭源软件重建、参考应用构造 and setup-only requests. Choose and combine any suitable investigation and implementation methods, including GUI/AX automation, REA, static or dynamic analysis, state and protocol inspection, custom tools and human evidence. Requires local macOS for original-app exploration and execution.
 ---
 
 # macOS 闭源参考应用构造
 
-把闭源原版 **A** 尽可能完整地复现为拥有完整源码、可独立构建运行的参考 App **B**。本 Skill 负责 **A → B**；后续被测 Agent 通过 Computer Use 探索 B 并实现 C，属于独立评测流程。
+把闭源原版 **A** 尽可能完整地复现为拥有完整源码、可独立构建运行的参考 App **B**。
 
-构造 B 时不预设技术手段上限。按实际问题自由组合工具、直接调用 CLI/API、编写分析脚本、使用第三方依赖或拆分子任务；REA、Computer Use 和 Build macOS Apps 都是可用能力，不是唯一方案或必须全部通过的门槛。不要把 B → C 的纯 GUI 限制套到构造者身上。用户明确指定的当前操作限制仍然有效。
+构造 B 时不预设技术手段上限。按实际问题自由组合工具、直接调用 CLI/API、编写分析脚本、使用第三方依赖或拆分子任务；REA、Computer Use 和 Build macOS Apps 都是可用能力，不是唯一方案或必须全部通过的门槛。用户明确指定的当前操作限制仍然有效。
 
 交付范围保持原版的全部正常功能。自主清点、调查、实现、验证和修正；用户提供目标、完成确需人工的授权、体验成品并指出差异。开发可以分步，不把最终目标改成 MVP，不逐项询问是否添加范围内功能。
 
@@ -16,7 +16,7 @@ description: Build a complete, independently runnable reference implementation o
 - [references/setup.md](references/setup.md)：准备或修复本地工具。
 - [references/methods.md](references/methods.md)：选择调查、实验和实现方法；现有工具回答不了问题时扩展能力。
 - [references/ledger.md](references/ledger.md)：登记入口、行为、证据和回归场景。
-- [references/reference-app.md](references/reference-app.md)：独立运行、参考版本冻结、私有源码和评测隔离验收。
+- [references/reference-app.md](references/reference-app.md)：参考实现清单、独立运行验收和参考版本冻结。
 
 ## 1. 建立目标与工作区
 
@@ -24,7 +24,6 @@ description: Build a complete, independently runnable reference implementation o
 2. 确认操作原版的工具实际运行在原版所在的 Mac。远程或 Linux 环境可以做资料整理、代码编辑和平台无关测试，但不能据此声称已观察原版或完成 macOS 验收。
 3. 运行 `python3 "$SKILL_DIR/scripts/init_project.py" PROJECT_DIR --app-path APP_PATH`，创建 `replica/` 中的记录和 `reference-manifest.json`。不使用 AX 时加 `--skip-ax`；AX 编译失败只影响该工具，不阻塞其余调查。旧项目文件保留，继续前先读 `progress.md`、功能清单、场景和参考实现清单。
 4. 记录 A 的版本、构建号、系统、权限、可访问功能及依赖。只在用户尚未选定原型时优先筛选独立运行、核心状态可控制的软件；已选目标的服务端或硬件依赖逐项调查，不能默默删除。
-5. 将具体 App 的源码、分析材料和测试证据放在独立私有工作区。公共 Skill 仓库只保存通用指令、工具和合成测试，不自动上传 A 或 B 的资源、二进制、源码和构造记录。
 
 用户只要求安装准备时，按 setup.md 完成准备和真实连接核对后停止，不创建参考 App 或开始复刻。
 
@@ -96,4 +95,4 @@ python3 "$SKILL_DIR/scripts/state_diff.py" diff PROJECT_DIR before after
 
 交付可运行的 `.app`、完整源码、构建启动方法、测试与重置说明、功能覆盖统计、真实阻塞与差异。源码对 B 是真实实现，对 A 是行为替代实现；不声称恢复了 A 的原始源码。
 
-为后续 B → C 保持隔离：B 源码、构造会话、逆向材料、完整规格和隐藏测试由构造者私有保管，评测只暴露协议允许的运行界面。隔离需要独立环境和访问控制，不能仅靠提示词或 `.gitignore`。不自动启动第二层评测，不自动发布参考源码；打包、公证和发布按用户要求执行。
+不自动上传或发布 A 的资源、分析材料和 B 的源码；打包、公证和发布按用户要求执行。

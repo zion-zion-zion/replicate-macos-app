@@ -12,15 +12,15 @@
 
 `init_project.py` 在 `replica/` 下创建以下记录，保留已有文件：
 
-- `feature-ledger.json`：原版与系统信息、入口、功能和证据；保持 `schema_version: 4`。
-- `scenarios.json`：原版 A 与参考 B 的对照场景；保持 `schema_version: 4`。
-- `reference-manifest.json`：B 的源码、构建、依赖、独立性和隔离验收，使用独立的 `schema_version: 1`，详见 `reference-app.md`。
+- `feature-ledger.json`：原版与系统信息、入口、功能和证据；`schema_version` 为 4。
+- `scenarios.json`：原版 A 与参考 B 的对照场景；`schema_version` 为 4。
+- `reference-manifest.json`：B 的源码、构建、依赖、独立性验收和冻结记录，使用独立的 `schema_version: 1`，详见 `reference-app.md`。
 - `progress.md`：当前阶段、下一步、构建命令、等待用户处理的事项和构造记录。
 - `evidence/`：包、AX、状态、静态分析、运行时实验、截图、文件和测试输入。
 - `scenarios/`：可重放的测试脚本。
 - `bin/ax`：可选 AX 工具，默认尝试编译，可用 `--skip-ax` 跳过。
 
-证据路径相对 `replica/`，源码和构建产物的位置写入参考实现清单。具体 App 的全部记录与材料放在私有项目中，不加入公共 Skill 仓库。`.gitignore` 不是访问隔离措施。
+证据路径相对 `replica/`，源码和构建产物的位置写入参考实现清单。
 
 ## 入口清单
 
@@ -76,7 +76,7 @@ AX 可见入口用实际元素路径；其他入口用能定位它的描述，�
 
 | `kind` | 记录要求 |
 | --- | --- |
-| `ax` / `state` / `bundle` | 原有脚本或同类输出；`path` 必填 |
+| `ax` / `state` / `bundle` | 本 Skill 脚本或同类工具的输出；`path` 必填 |
 | `static` | 任意静态分析、反编译或代码资源解析；`path` 必填，在 `note` 写明方法、版本和结论 |
 | `runtime` | 任意运行时分析、插桩、网络/文件观察或受控实验；`path` 必填，写明目标、操作与实际输出 |
 | `gui` / `file` / `log` | 原版运行中的截图、输出文件或日志 |
@@ -118,7 +118,7 @@ AX 可见入口用实际元素路径；其他入口用能定位它的描述，�
 
 `kind` 为 `script / gui / automated`，状态为 `pending / passed / failed / blocked`。
 
-**script**：可重放脚本，不绑定 AX。脚本路径相对 `replica/`，必须存在且可执行；沿用 `scenarios/S-001.sh BUNDLE_ID OUT_DIR` 接口，分别对 A 和 B 执行。脚本可以使用 AX、AppleScript、CLI、协议或其他适合的方式，但必须真正驱动目标行为。
+**script**：可重放脚本，不绑定 AX。脚本路径相对 `replica/`，必须存在且可执行；接口为 `scenarios/S-001.sh BUNDLE_ID OUT_DIR`，分别对 A 和 B 执行。脚本可以使用 AX、AppleScript、CLI、协议或其他适合的方式，但必须真正驱动目标行为。
 
 **gui**：用实际画面和输入验证布局、焦点、拖放、动效等。两边都保存截图，统一语言、外观、缩放和窗口条件。Computer Use 是默认能力，也可采用能提供等价证据的方法；不能因为 AX 结构一致就声称视觉一致。
 
@@ -128,7 +128,7 @@ AX 可见入口用实际元素路径；其他入口用能定位它的描述，�
 
 相同 fixtures 分别复制到 A 和 B 的隔离目录，先恢复起始状态，再比较输出内容、命名、顺序、窗口、提示、保存和恢复。对不可直接二进制比较的文件，解析内容并注明允许的非语义差异。
 
-`ax perform` 后等待界面达到可观察的稳定状态，再导出证据；原有简单场景可短暂等待，但不能把固定延时当成操作成功的证明。`state_diff.py` 可记录两次操作间的偏好和文件变化，复杂格式可另写解析器。
+`ax perform` 后等待界面达到可观察的稳定状态，再导出证据；简单场景可短暂等待，但不能把固定延时当成操作成功的证明。`state_diff.py` 可记录两次操作间的偏好和文件变化，复杂格式可另写解析器。
 
 通过场景要求两边都有 `result`、`differences` 为空；`script` 与 `gui` 两边各有至少一个存在的证据文件。失败时记录差异并保留复现，修复后重跑此场景及受影响场景。已知未解决差异不能通过归一化或删除检查隐藏。
 
@@ -138,4 +138,4 @@ AX 可见入口用实际元素路径；其他入口用能定位它的描述，�
 
 交付前加 `--final`：功能和场景均非空，每项为 `passed` 或 `blocked`，`unchecked` 为空。报告总数、通过数和阻塞数，不将阻塞算成已复现。程序检查不证明已发现所有功能，也不检查真实 App 执行或 `reference-manifest.json` 的独立性声明。
 
-另按 `reference-app.md` 完成 B 的独立构建运行、重置、冻结和隔离记录；尚未实际验证的项目保持待验证。用户体验反馈加入原有功能与场景，保留稳定 ID，不另起一套无法回归的记录。
+另按 `reference-app.md` 完成 B 的独立构建运行、重置和冻结记录；尚未实际验证的项目保持待验证。用户体验反馈加入原有功能与场景，保留稳定 ID，不另起一套无法回归的记录。

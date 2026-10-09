@@ -15,7 +15,7 @@ PROGRESS = """# 参考应用构造进度
 - 原版 A：{name} {version}（{build}），{bundle_id}
 - 路径：{path}
 - macOS：{macos_version}（{macos_build}）
-- 交付：独立可运行、拥有完整私有源码的参考 App B
+- 交付：独立可运行、拥有完整源码的参考 App B
 
 ## 当前阶段
 
@@ -82,10 +82,6 @@ def reference_manifest(identity):
         "verification": {
             name: {"status": "pending", "evidence": [], "notes": []}
             for name in ("fidelity", "independence", "reset")
-        },
-        "isolation": {
-            "source_private": None, "construction_evaluation_separated": None,
-            "evidence": [],
         },
         "freeze": {
             "reference_version": None, "frozen_at": None,

@@ -1,6 +1,6 @@
 interface:
   display_name: "macOS 闭源参考应用构造"
-  short_description: "自主选择调查和实现方法，将闭源 App 完整复现为可独立运行、拥有私有源码的参考应用"
+  short_description: "自主选择调查和实现方法，将闭源 App 完整复现为可独立运行、拥有完整源码的参考应用"
   default_prompt: "使用 $replicate-macos-app，按需准备工具，自主选择方法，将指定闭源 macOS App 完整复现为可独立运行的参考应用，并保留完整源码和验证记录。"
   icon_small: "./assets/icon.svg"
   icon_large: "./assets/icon.svg"

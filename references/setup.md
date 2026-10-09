@@ -13,11 +13,11 @@
 1. 确认执行环境是目标 App 所在的本地 macOS。环境不符时继续可完成的文档、代码或平台无关测试，不声称替用户 Mac 完成安装、授权或 App 验收。
 2. 运行 `python3 "$SKILL_DIR/scripts/bootstrap.py" --install`。Python 不可用时先准备 Command Line Tools（`xcode-select --install`）。安装器逐项复用已有能力：
    - Build macOS Apps、Computer Use：从 `codex plugin list --json --available` 找到插件，未安装时调用对应的 `codex plugin add`。
-   - REA：保留固定的 `rea-agents@6.1.0`。先用 `rea setup --client codex --dry-run` 生成限定计划，核对只配置 Codex 和安装 REA Skill，再应用并复核。
+   - REA：固定使用 `rea-agents@6.1.0`。先用 `rea setup --client codex --dry-run` 生成限定计划，核对只配置 Codex 和安装 REA Skill，再应用并复核。
 3. 核对每项状态。部分失败时保留成功项，只修复当前工作需要的失败项；已有可用替代能力时继续，不为追求安装报告全绿反复重装。
 4. 集中列出当前确需用户完成的权限与连接操作，写入 `progress.md`。新配置加载后回到 SKILL.md 第 2 节，验证实际选择的能力。
 
-`--check` 不写客户端配置，但首次执行可能下载 `rea-agents` 到 npm 缓存。bootstrap.py 是已有默认工具组的安装器，不负责自动安装方法目录中的所有工具。
+`--check` 不写客户端配置，但首次执行可能下载 `rea-agents` 到 npm 缓存。bootstrap.py 只安装默认工具组，不负责自动安装方法目录中的所有工具。
 
 ## 保留现有配置
 

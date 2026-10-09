@@ -58,7 +58,6 @@ class InitializationTests(unittest.TestCase):
         self.assertEqual(manifest["role"], "reference_app_construction")
         self.assertEqual(manifest["original"]["bundle_id"], "org.example.original")
         self.assertEqual(manifest["verification"]["independence"]["status"], "pending")
-        self.assertIsNone(manifest["isolation"]["source_private"])
         self.assertIsNone(manifest["freeze"]["artifact_sha256"])
 
     def test_skip_ax_does_not_compile(self):
