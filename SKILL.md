@@ -1,65 +1,56 @@
 ---
 name: replicate-macos-app
-description: Replicate the complete functionality of a closed-source macOS app as an independently written native app. Explore the original with Codex Computer Use, investigate its bundle and behavior with REA MCP, then implement and validate the replica. Use for macOS App 复刻、全功能复刻、复刻闭源 Mac 应用, including setup-only requests that prepare REA and Build macOS Apps skills for this workflow. Do not use for building a new macOS app without a reference app, reverse-engineering analysis that does not produce a replica, iOS/iPadOS or web apps, or installing REA alone. Requires local macOS.
+description: Replicate an installed closed-source macOS app as an independently written native app. Explore the original with Computer Use and REA MCP, rebuild it with the Build macOS Apps plugin skills, and verify both apps side by side. Use for macOS App 复刻、全功能复刻、clone or rebuild of an existing Mac app, including setup-only requests that install these tools for this workflow. Requires local macOS.
 ---
 
-# macOS App 全功能复刻
+# macOS App 复刻
 
-先确定目标并初始化项目记录，再完成安装准备，然后使用 Computer Use、REA 和原生开发 Skills 尽可能完整地复刻目标 App。让用户提供目标 App、体验可运行版本、指出差异；自主完成能力盘点、调查、实现和验证。不要把范围改成 MVP，也不要逐轮询问是否添加正常功能。
+三个工具各管一段：
 
-把本 Skill 的实际目录记作 `SKILL_DIR`，使用绝对路径运行脚本。中断或重启 Codex 后，先读 `replica/progress.md`、功能清单和场景，从记录的下一步继续。
+- **Computer Use** 操作原版和复刻版：清点菜单、窗口、设置和右键菜单，观察行为，截取对照截图。调用方式以当前会话 Computer Use 插件的说明为准；用 bundle identifier 指定目标 App，两边同名时也不会操作错对象。
+- **REA MCP** 解释界面看不到的部分：Info.plist 声明的入口、entitlements、资源、文件格式、存储位置和处理逻辑。调用方法按 `reverse-engineer-anything` Skill，以当前会话的工具列表为准。
+- **Build macOS Apps** 插件的 Skills（`build-macos-apps:*`）负责建工程、实现、构建运行、调试和测试。
 
-## 0. 明确目标与初始化项目
+复刻范围是原版的全部功能。用户提供目标 App、体验交付版本并指出差异；清点、调查、实现和验证由你自主完成，范围内的功能直接做。
 
-用户只要求安装准备时跳过本节。
+把本 Skill 的目录记作 `SKILL_DIR`，用绝对路径运行脚本。项目记录的格式和规则见 [references/ledger.md](references/ledger.md)。
 
-读取 [references/workflow.md](references/workflow.md)。复用已指定的 App 路径和项目目录；目标未知时只询问 App 名称或路径，并把名称解析为本机唯一的 `.app` 路径。用户未指定项目目录时，当前工作目录为空或已有 `replica/` 就直接使用，否则询问一次项目目录。项目根目录与 Codex 工作目录一致时，build-run-debug 生成的 Run 按钮配置才会生效。
+## 1. 开始
 
-运行 `python3 "$SKILL_DIR/scripts/init_project.py" PROJECT_DIR --app-path APP_PATH`，创建 `replica/feature-ledger.json`、`replica/scenarios.json`、`replica/progress.md` 与证据目录，并从 Info.plist 和 `sw_vers` 记录原版名称、版本、构建号、bundle id 和 macOS 版本。已有记录保持不变。用来源、操作和输出支撑结论，把推断与已观察行为分开。
+1. 确定目标 App 和项目目录。目标未知时只询问 App 名称或路径，并解析为本机唯一的 `.app` 路径。用户未指定项目目录时，当前工作目录为空或已有 `replica/` 就直接使用，否则询问一次。项目根目录与 Codex 工作目录一致时，`build-run-debug` 生成的 Run 按钮才会生效。
+2. 运行 `python3 "$SKILL_DIR/scripts/init_project.py" PROJECT_DIR --app-path APP_PATH`，在 `replica/` 下创建功能清单、场景、进度文件和证据目录，已有文件保持不变。项目已有记录时，先读 `replica/progress.md`、功能清单和场景，从记录的下一步继续。
+3. 在当前会话实际调用三个工具：用 Computer Use 获取原版窗口状态，用 REA 打开原版 `.app`，确认技能列表中有 `build-macos-apps:build-run-debug`。都可用就进入第 2 节；有缺失时按 [references/setup.md](references/setup.md) 安装，完成后回到这一步重新确认。
 
-## 1. 安装准备
+用户只要求安装准备时，跳过本节第 1、2 步，按 setup.md 安装，再完成第 3 步的确认（目标 App 未指定时，Computer Use 用任一已打开的 App 确认），报告已就绪项和仍需用户操作的项后停止。
 
-读取 [references/setup.md](references/setup.md)。安装 Skill 不会执行安装钩子；首次使用时执行本节，以后先检查并复用已就绪的依赖。
+## 2. 清点入口
 
-REA 的安装、诊断和修复按本节与 setup.md 执行，使用固定的 `rea-agents@6.1.0`。`reverse-engineer-anything` Skill 中基于 `rea-agents@latest` 的 doctor、setup 步骤及其安装确认规则不用于本任务，安装授权以第 4 步为准。
+先求全，再求深：把原版的每一个入口登记进 `inventory`，再逐个功能深入。
 
-1. 确认当前执行环境为目标 App 所在的本地 macOS。环境不符时，说明本地运行要求，继续完成不依赖本地环境的工作。
-2. 运行 `python3 "$SKILL_DIR/scripts/bootstrap.py" --check`，检查 macOS、Node.js、npm、git、Swift 工具链、安装记录，以及 REA doctor 报告的 Codex 注册和 REA Skill 状态。Python 尚不可用时先提示准备 Command Line Tools。不要把 Computer Use `unknown` 当成权限失败。
-3. 检查当前会话实际可调用的 REA 工具和官方 Build macOS Apps Skills。REA 已连接可用时添加 `--skip-rea`；仅在确认官方开发 Skills 全部可用时添加 `--skip-build-skills`。不要因同名泛用 Skill 存在就认为安装完成。
-4. 用户在提示中显式调用 `$replicate-macos-app`，或明确要求准备环境时，视为已授权安装必要依赖，不反复请求确认。本 Skill 因描述匹配被隐式启用时，先简短说明将配置 Codex 的 REA MCP、安装 REA 工作流和 11 个原生开发 Skills（用户级安装，对所有项目生效），取得同意后再安装。安装时运行 `python3 "$SKILL_DIR/scripts/bootstrap.py" --install`，按上一步添加跳过参数。脚本先生成限定安装计划，再使用官方 setup 应用；只配置 Codex，不扩展到其他客户端。
-5. 核对每项结果。部分失败时复用成功项，仅修复失败项。Codex 已注册更新版本或无法确定版本的 REA 时，脚本保留该注册并报告 REA 失败：当前会话 REA 工具可用时加 `--skip-rea` 重跑；不可用时向用户说明现有注册并询问处理方式，不要自行删除或改写。不要覆盖用户现有 Skill、删除其他 MCP，或把 setup 成功当成会话已经连接。
-6. 一次性列出需用户亲自执行的缺失项：开启 Computer Use 的 server 和 skill 开关；授予系统提示的屏幕录制和辅助功能权限；允许访问目标 App；如新配置尚未加载则重连或重启 Codex。开发工具、登录、许可证只在实际缺失时提示。不要求所有应用权限，不修改 macOS 权限数据库。已初始化项目且需要重连或重启 Codex 时，先在 `progress.md` 写明当前阶段、下一步和等待用户处理的事项。
-7. 调用当前会话真实的 REA 只读工具，并用 Computer Use 获取指定 App 的初始画面。实际输入权限在第一项已授权、可撤销的目标操作中验证。区分“配置已写入”“工具已连接”“App 可操作”。
-8. 仅在调查需要原生深度分析且现有 provider 不可用时处理 Hopper/Ghidra。已有 provider 先做针对它的 doctor。安装 Hopper 须有用户明确选择，再加 `--with-hopper`，不要购买许可证。装完后需要用户打开一次 Hopper，选择 Demo 模式或激活许可证；脚本把这一步列入 `user_actions`。不要把 Hopper Demo 或 doctor 通过当成所有反编译能力均可用。
+- **REA**：从 Info.plist、entitlements 和 bundle 结构登记文档类型、导入导出类型、URL scheme、系统服务、AppleScript 命令、App Intents、扩展、XPC 服务和登录项，证据写 Evidence ID。`*UsageDescription` 指向需要系统权限的功能。
+- **Computer Use**：逐个打开菜单栏的每个菜单和子菜单，登记每一项及其快捷键；打开设置的每个面板，登记每个影响行为的选项；再登记工具栏按钮（包括自定义工具栏面板里的项）、各主要区域的右键菜单、Dock 菜单、菜单栏图标、拖放目标和窗口内控件。
+- 由系统提供、复刻版从框架默认获得的标准项（如「服务」子菜单、「隐藏其他」）登记为 `skip` 并写原因。
 
-用户只要求安装准备时，报告已安装项和仍需用户操作的项后停止，不启动复刻。
+完成标志：菜单栏、设置、工具栏和 bundle 声明都已逐项登记，`python3 "$SKILL_DIR/scripts/ledger_check.py" PROJECT_DIR` 输出的 `entry_kinds.unchecked` 为空。
 
-## 2. 盘点与探索
+然后把入口归并为功能：同一操作的多个入口指向同一个功能 ID。
 
-运行 `python3 "$SKILL_DIR/scripts/inspect_bundle.py" APP_PATH PROJECT_DIR/replica/evidence`，得到 `bundle.json` 和 `bundle-strings.json`。按 workflow.md 判断 App 类型和调查路线，把其中的文档类型、URL scheme、系统服务、AppleScript、App Intents、扩展等转成清单条目。
+## 3. 逐个功能：观察、重建、对照
 
-随后用 Computer Use 按 workflow.md 的入口类别系统探索窗口、菜单、设置、右键、快捷键、拖拽、导入导出、状态恢复与异常输入，按功能粒度规则补全清单。需要作为证据的截图复制到 `replica/evidence/`。
+先做主流程（打开或新建、编辑、保存），再按菜单顺序推进。每个功能（或同一区域的一小组功能）走完下面三步，再进入下一个。
 
-针对未理解的行为或可能遗漏的入口调用 REA，调查相关资源、处理逻辑、格式与持久化。调查方法按 `reverse-engineer-anything` Skill 执行，包括按目标类型选择首个工具、先读摘要结果，以及其中 Plan broader investigations 的分阶段调查。以当前会话工具的真实 schema 为准，不请求无目标的全量反编译。本 Skill 负责把调查结论写入功能清单和场景，方法见 workflow.md。
+1. **观察**：用 Computer Use 在原版上实测，使用测试文件和隔离目录，覆盖不同前置状态、禁用状态、错误提示和重启后的恢复。界面解释不了的问题（文件格式、存储位置、默认值、算法、隐藏设置）交给 REA，从具体问题出发查资源、字符串、plist、nib 或代码。写下 `expected` 和证据，状态改为 `observed`。
+2. **重建**：按 Build macOS Apps 的 Skills 实现。第一次实现前，用 `swiftpm-macos`（或沿用已有 Xcode 工程）建立工程，用 `build-run-debug` 建立 `script/build_and_run.sh` 和 Run 按钮。界面以 SwiftUI 场景为主，参照 `swiftui-patterns` 和 `window-management`；SwiftUI 达不到原版行为的部分（如复杂表格、文本编辑、菜单项校验）按 `appkit-interop` 用 AppKit 实现。运行日志用 `telemetry`，测试失败用 `test-triage`，沙盒和权限用 `signing-entitlements`。用户指定技术栈时按用户要求。复刻版使用独立的 bundle identifier、配置和数据目录，用自己编写的代码实现观察到的行为。功能完整连通后状态改为 `implemented`。
+3. **对照**：为功能写场景，用 Computer Use 对原版和复刻版执行同一组步骤，比较界面、输出文件、状态变化和重启恢复，截图存入 `replica/evidence/`。文件格式、算法和持久化另写自动化测试。场景通过后功能状态改为 `passed`；有差异就写进场景的 `differences`，回到观察或重建。
 
-将新发现转成 GUI 验证任务，再用 Computer Use 确认分支、边界和重启行为。持续交替两种工具，直至每个入口类别都有对应功能或不存在的依据、候选功能已处理、行为有证据。不要用一次遍历来宣称绝对全量覆盖。
+规则：
 
-遵守用户已有的操作方式限制。指定仅截图与鼠标键盘时，不用 REA 的 Accessibility Tree 代替探索；macOS 辅助功能权限仍可能是输入控制所必需。操作原版时使用测试文件、隔离目录和可恢复设置。
+- 连通到真实逻辑才算 `implemented`；未连通的按钮、静态假数据和占位实现保持原状态。
+- `blocked` 只用于这些原因：账号、原厂服务端、硬件、付费许可、Apple 限定的 entitlement、用户明确排除。阻塞的功能保留条目，继续其他功能。
+- Computer Use 拿不到画面（屏幕锁定、权限被撤销）时，在 `progress.md` 写明等待用户处理，继续实现和自动化测试，GUI 场景保持 `pending`。
+- 每轮观察后把结论写进功能清单，只保留作为证据的截图。切换阶段、完成功能或需要用户操作时更新 `progress.md`。
+- 遵守用户给出的操作方式限制。修改原版设置前记下原值，用完恢复。
 
-## 3. 完整实现
+## 4. 交付
 
-根据行为证据独立编写可管理源码。按 workflow.md 的 App 类型路线选择实现方式：原版以 AppKit 为主就以 AppKit 为主，以 SwiftUI 为主就以 SwiftUI 为主；Electron、Catalyst、WebView 外壳、Qt、Flutter、Java 等统一用 SwiftUI + AppKit 原生实现。用户指定技术栈时按用户要求。保留目标的行为和操作习惯，不强制套用 Liquid Glass 风格。
-
-从当前 Skills 列表读取适用的官方开发 Skills；新安装项尚未显示时，直接读取安装报告给出的 `SKILL.md` 绝对路径。优先使用 `build-run-debug`、`swiftpm-macos`、`swiftui-patterns`、`appkit-interop`、`window-management`；按需要读取测试、日志、签名和重构相关 Skill。
-
-实现清单中全部正常功能和已观察的分支。开发可以分步，但交付范围保持完整。未连通按钮、静态假数据和占位功能不能通过验收。不可访问的账号或服务能力保留条目并记录阻塞，继续其他功能。每完成一个功能提交一次 git commit，并按 workflow.md 更新 `progress.md`。
-
-按 build-run-debug 建立 `script/build_and_run.sh`，确保启动本次构建的 `.app`。使用独立 bundle identifier、配置和测试数据，避免写入原版状态。
-
-## 4. 行为验证与交付
-
-对原版和复刻版执行对应的同一组场景，比较输出文件、状态转换、设置、快捷键、窗口行为和重启恢复。用 Computer Use 检查实际界面，并按 workflow.md 截取两边对应界面做外观对比；对算法、格式、持久化及容易回归的行为执行有意义的自动化测试。
-
-发现差异后自主回到调查、实现和验证，不要求用户逐个决定正常功能是否需要。体验反馈加入清单、修正后重跑相关场景。
-
-交付前运行 `python3 "$SKILL_DIR/scripts/ledger_check.py" PROJECT_DIR --final`，没有错误后才报告完成。交付可运行 `.app`、完整源码、构建启动方法、覆盖与验证结果、确实尚未解决的差异，不隐藏阻塞。打包、公证、发布仅按用户要求执行。
+`python3 "$SKILL_DIR/scripts/ledger_check.py" PROJECT_DIR --final` 没有错误后才报告完成。交付可运行的 `.app`、源码、构建启动命令、清单统计（入口数、功能数、通过数、阻塞项及原因）和尚未解决的差异。用户体验后指出的差异加入清单，修正后重跑相关场景。打包、公证和发布按用户要求执行。

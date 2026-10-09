@@ -1,72 +1,55 @@
-# 安装准备与连接核对
+# 安装准备
 
-## 运行方式
+本 Skill 面向本地 macOS 上的 Codex。安装 Skill 不会执行安装钩子；首次使用时由 `bootstrap.py` 准备依赖，之后检查并复用已就绪的项。
 
-本 Skill 面向本地 macOS 上的 Codex。首次使用时在本机运行安装脚本，之后检查并复用已有依赖：
+## 授权
 
-```bash
-python3 /absolute/path/replicate-macos-app/scripts/bootstrap.py --check
-python3 /absolute/path/replicate-macos-app/scripts/bootstrap.py --install
-```
+用户在提示中显式调用 `$replicate-macos-app`，或明确要求准备环境时，视为已授权安装必要依赖，直接安装。本 Skill 因描述匹配被隐式启用时，先简短说明将安装 Build macOS Apps 和 Computer Use 插件、为 Codex 配置 REA MCP 并安装 REA Skill（用户级安装，对所有项目生效），取得同意后再安装。
 
-`--check` 不写配置，会运行固定版本的 `rea doctor --client codex --skill`，报告 Codex 中已有的 REA 注册命令、版本和 REA Skill 状态；首次运行会把 `rea-agents` 下载到 npm 缓存。
+## 步骤
 
-支持 `--skip-rea`、`--skip-build-skills`。仅在当前会话实际验证相应依赖后跳过。`--with-hopper` 只在用户明确选择安装 Hopper 时添加。
+1. 确认当前执行环境是目标 App 所在的本地 macOS。环境不符时说明本地运行要求，继续完成不依赖本地环境的工作。
+2. 运行 `python3 "$SKILL_DIR/scripts/bootstrap.py" --install`。Python 不可用时先提示安装 Command Line Tools（`xcode-select --install`）。脚本逐项处理，已就绪的项直接复用：
+   - Build macOS Apps、Computer Use：从 `codex plugin list --json --available` 找到插件，未安装时运行 `codex plugin add <插件>@<marketplace> --json`。
+   - REA：固定 `rea-agents@6.1.0`。doctor 报告 Codex 注册与 REA Skill 都已就绪时直接复用；否则先用 `rea setup --client codex --dry-run` 生成计划，核对计划只包含配置 Codex 和安装 REA Skill，再用 `--yes` 应用，最后用 doctor 复核。
+3. 核对输出中每一项的 `status`。部分失败时保留成功项，只修复失败项。
+4. 一次性列出 `user_actions` 中需要用户亲自完成的事项；已初始化项目时同时写进 `progress.md` 的「等待用户处理」，并写明下一步。有新安装项时需要重启 Codex，重启后回到 SKILL.md 第 1 节第 3 步重新确认。
 
-## 自动完成的内容
+只读检查用 `--check`，它不写配置，首次运行会把 `rea-agents` 下载到 npm 缓存。
 
-安装脚本限定配置 Codex 的 REA MCP，并安装包内匹配版本的 `reverse-engineer-anything` 工作流。使用官方 setup 保留无关配置和备份，不覆盖整份 `config.toml`。固定 `rea-agents@6.1.0`。执行 setup 前读取 doctor 报告的 Codex 注册：已注册更新版本，或注册命令中无法确定版本（如 `@latest`、本地路径）时，不执行 setup 并保留现有注册；已注册旧版本时更新为 6.1.0。升级时另行读取当前官方说明并核实版本。
+## 需要保留的现有配置
 
-使用 `--with-hopper` 时，REA 在 macOS 上装完 Hopper 后固定返回 `needs_human`，要求用户打开一次 Hopper 选择 Demo 模式或激活许可证。脚本以 doctor 结果判断 Codex 注册和 REA Skill 是否就绪，并把 Hopper 这一步列入 `user_actions`。
+- Codex 已注册更新版本或无法确定版本（如 `@latest`、本地路径）的 REA 时，脚本保留该注册并报告失败。当前会话 REA 工具可用就继续；不可用时向用户说明现有注册并询问处理方式。
+- 插件有多个 marketplace 来源时，脚本报告候选项，由用户选择。
+- 插件已安装但未启用时，请用户在 Codex 的 Plugins 中启用。
+- 脚本只配置 Codex，保留其他 MCP、其他客户端和用户已有的 Skill。
 
-下载官方 `build-macos-apps` 的固定 Git revision，将完整插件内容及原有许可声明保存在 `~/.local/share/replicate-macos-app`，再在 `~/.agents/skills` 创建指向 11 个 Skill 的链接。这些链接是用户级安装，对所有项目生效。保留原始名称和参考资料。已有官方插件且全部 Skills 可用时跳过。
+## Hopper
 
-| Skill | 使用场景 |
-| --- | --- |
-| `build-run-debug` | 构建、启动、调试 |
-| `swiftpm-macos` | SwiftPM 与 App bundle |
-| `swiftui-patterns` | SwiftUI 界面 |
-| `appkit-interop` | 菜单、响应链、AppKit 桥接 |
-| `window-management` | 窗口、恢复与多窗口 |
-| `test-triage` | 测试排查 |
-| `telemetry` | 运行日志 |
-| `signing-entitlements` | 本地签名与权限 |
-| `view-refactor` | View 结构调整 |
-| `liquid-glass` | 需要时使用现代视觉 API |
-| `packaging-notarization` | 按要求打包与公证 |
+只在功能调查需要原生深度分析、现有 provider 不可用时处理。已有 provider 先运行针对它的 doctor，例如 `npm exec --yes --package=rea-agents@6.1.0 -- rea doctor --provider ghidra --format json`。安装 Hopper 需要用户明确选择，再运行 `bootstrap.py --install --with-hopper`，不购买许可证。装完后用户需要打开一次 Hopper，选择 Demo 模式或激活许可证，脚本会把这一步列入 `user_actions`。Hopper Demo 或 doctor 通过只说明 Hopper 可启动，能否分析真实目标以实际调用为准。
 
-## 用户需要开启或准备的内容
+## 用户需要完成的事项
 
 | 检查项 | 实际缺失时的用户操作 |
 | --- | --- |
-| 本地 GUI 控制 | 在桌面客户端 Plugins 中安装或启用 Computer Use，开启 server 和 skill 开关 |
-| 系统权限 | 按提示在“系统设置 → 隐私与安全性”授予实际组件屏幕录制和辅助功能权限 |
-| App 访问 | 客户端出现提示时允许访问本次目标 App |
-| Node.js 与 npm | 安装 Node.js 22.x >=22.19、24.x >=24.11，或稳定版 26+，确认 `node`、`npm`、`npx` 可执行；23、25、prerelease 不支持 |
-| Python、git、Swift | 准备 Command Line Tools；需要完整 Xcode 的工程再准备 Xcode。可以提示 `xcode-select --install` 并完成系统安装窗口 |
-| 新配置尚未加载 | 重连或重启 Codex，再验证实际工具 |
-| 原版尚未可用 | 安装并启动原版，按需要自行完成登录或许可证步骤 |
+| 系统权限 | 按提示在「系统设置 → 隐私与安全性」授予 Computer Use 屏幕录制和辅助功能权限 |
+| App 访问 | Codex 出现提示时允许访问本次目标 App |
+| Node.js 与 npm | 安装 Node.js 22.x >=22.19、24.x >=24.11 或稳定版 26+，确认 `node`、`npm`、`npx` 可执行 |
+| codex CLI | 安装 Codex CLI，或在 Codex 桌面版的 Plugins 中手动安装两个插件 |
+| Swift 工具链 | 安装 Command Line Tools；需要 Xcode 工程时安装完整 Xcode |
+| 新配置尚未加载 | 重启 Codex |
+| 原版 App | 安装并启动原版，需要登录或许可证时由用户完成 |
 
-先完成可自动执行的安装，集中列出真正缺失的用户操作。系统权限需用户亲自授权，不用 TCC 数据库或 `tccutil reset` 自动开启。辅助功能权限与读取 Accessibility Tree 是两件事。
+系统权限由用户亲自授予，不改 TCC 数据库，不运行 `tccutil reset`。
 
-## Readiness 与连接验证
+## 连接验证
 
-```bash
-npm exec --yes --package=rea-agents@6.1.0 -- rea doctor --client codex --skill --format json
-npm exec --yes --package=rea-agents@6.1.0 -- rea doctor --provider ghidra --format json
-```
+安装记录、插件列表和 doctor 只说明配置已写入，不能证明当前会话已加载。区分三种状态：配置已写入、工具在当前会话可调用、目标 App 可以操作。验证方式见 SKILL.md 第 1 节第 3 步。
 
-按任务限定 doctor 范围。缺失 Hopper 不会阻止无须原生反编译的 bundle、资源和 JavaScript 调查。Hopper/Ghidra 仅在功能调查需要时准备；CLI 启动不证明能分析真实目标。
-
-doctor 检查注册和依赖，无法证明当前会话已加载 MCP。连接后读取真实工具列表，调用一个目标无关或针对已指定 App 的只读操作，不硬编码工具名。再获取 App 画面并在授权范围内操作一次，验证 GUI 能力。
-
-若终端可运行 REA 而桌面客户端报 `npx` 或 `node` 找不到，检查该 MCP 的进程 PATH。只修复该 server 启动路径或 env，保留参数、版本和无关 MCP。重连验证，不重装整套依赖。
+终端能运行 REA 而 Codex 桌面版报 `npx` 或 `node` 找不到时，检查 REA MCP 的进程 PATH，只修复该 server 的启动路径或 env，保留参数、版本和其他 MCP，重启后验证。
 
 ## 上游资料
 
-调用 REA 时，以已安装版本和当前会话的工具 schema 为准。
-
 - REA 安装：https://github.com/morluto/rea/blob/main/docs/installation.md
-- setup 接口：https://github.com/morluto/rea/blob/main/src/cli/setupCommands.ts
-- 开发 Skills：https://github.com/openai/plugins/tree/0722921d5542fc593105c27bd52630babd8b8c2a/plugins/build-macos-apps
+- REA setup 接口：https://github.com/morluto/rea/blob/main/src/cli/setupCommands.ts
 - Codex Skills：https://developers.openai.com/codex/skills/

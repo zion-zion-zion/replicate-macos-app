@@ -1,35 +1,23 @@
-#!/usr/bin/env python3
-"""检查并准备 Mac 上的 REA MCP 与官方原生开发 Skills。"""
-
-from __future__ import annotations
-
 import argparse
 import datetime
 import json
 import os
-from pathlib import Path
 import re
 import shutil
 import subprocess
 import sys
 import tempfile
+from pathlib import Path
 
 REA_VERSION = "6.1.0"
 NETWORK_TIMEOUT = 600
 HOPPER_TIMEOUT = 1800
-PLUGIN_REVISION = "0722921d5542fc593105c27bd52630babd8b8c2a"
-PLUGIN_VERSION = "0.1.4"
-PLUGIN_REPO = "https://github.com/openai/plugins.git"
-SKILLS = (
-    "build-run-debug", "test-triage", "signing-entitlements", "swiftpm-macos",
-    "packaging-notarization", "swiftui-patterns", "liquid-glass",
-    "window-management", "appkit-interop", "view-refactor", "telemetry",
-)
+PLUGINS = {"build_macos_apps": "build-macos-apps", "computer_use": "computer-use"}
 
 
 def execute(argv, timeout):
     # 使用参数数组；不把路径或 JSON 当作 shell 代码。
-    env = dict(os.environ, GIT_TERMINAL_PROMPT="0", NO_COLOR="1")
+    env = dict(os.environ, NO_COLOR="1")
     return subprocess.run(argv, text=True, capture_output=True, timeout=timeout, env=env)
 
 
@@ -71,9 +59,36 @@ def state_dir():
     return Path(value).expanduser().resolve() if value else Path.home() / ".local/share/replicate-macos-app"
 
 
-def skills_dir():
-    value = os.environ.get("REPLICA_SKILLS_DIR")
-    return Path(value).expanduser().resolve() if value else Path.home() / ".agents/skills"
+def codex_cli():
+    path = shutil.which("codex") or os.environ.get("CODEX_CLI_PATH")
+    return path if path and Path(path).is_file() else None
+
+
+def plugin_status(codex):
+    listing = json.loads(run([codex, "plugin", "list", "--json", "--available"], timeout=NETWORK_TIMEOUT))
+    report = {}
+    for key, name in PLUGINS.items():
+        entries = [item for group in ("installed", "available") for item in listing.get(group, [])
+                   if item.get("name") == name]
+        installed = [item for item in entries if item.get("installed")]
+        report[key] = {"installed": bool(installed),
+                       "enabled": any(item.get("enabled") for item in installed),
+                       "plugin_ids": sorted({item["pluginId"] for item in installed or entries})}
+    return report
+
+
+def rea_json(*args, timeout=NETWORK_TIMEOUT):
+    argv = ["npm", "exec", "--yes", f"--package=rea-agents@{REA_VERSION}",
+            "--", "rea", *args, "--format", "json"]
+    proc = execute(argv, timeout)
+    # doctor 不健康、setup 需要人工处理时 REA 退出码为 1，stdout 仍是完整 JSON；由调用方按字段判断。
+    try:
+        value = json.loads(proc.stdout)
+    except ValueError:
+        raise failure(argv, proc) from None
+    if not isinstance(value, dict):
+        raise RuntimeError("REA 返回了非对象 JSON；停止写入并检查已安装版本。")
+    return value
 
 
 def inspect_rea():
@@ -96,8 +111,7 @@ def check():
     version = probe(["node", "--version"]) if shutil.which("node") else None
     npm, npx = shutil.which("npm"), shutil.which("npx")
     node_ready = supported_node(version) and bool(npm and npx)
-    git = bool(shutil.which("git") and probe(["git", "--version"]))
-    swift = probe(["xcrun", "--find", "swift"]) if mac else None
+    codex = codex_cli()
     record = state_dir() / "installation.json"
     installed = {}
     if record.is_file():
@@ -109,85 +123,28 @@ def check():
         "macos": mac, "python": sys.version.split()[0],
         "node_version": version, "node_supported": supported_node(version),
         "npm": npm, "npx": npx,
-        "git_ready": git, "swift": swift,
-        "codex_config": str(Path(os.environ.get("CODEX_HOME") or str(Path.home() / ".codex")) / "config.toml"),
-        "computer_use": "unknown: 需在活动会话检查开关、权限和实际画面",
+        "swift": probe(["xcrun", "--find", "swift"]) if mac else None,
+        "codex_cli": codex,
+        "plugins": plugin_status(codex) if codex else "unchecked: 找不到 codex CLI",
         "rea": inspect_rea() if mac and node_ready else "unchecked: 需要受支持的 Node.js 与 npm/npx",
-        "live_rea_mcp": "unknown: 注册与安装记录不代表当前会话已连接",
+        "live_session": "unknown: 安装状态不代表当前会话已加载 Computer Use、REA 和插件 Skills",
         "installation_record": installed,
     }
 
 
-def verify_plugin(folder):
-    manifest = folder / ".codex-plugin/plugin.json"
-    if not manifest.is_file():
-        raise RuntimeError("开发 Skills 的插件 manifest 缺失。")
-    metadata = json.loads(manifest.read_text(encoding="utf-8"))
-    if metadata.get("name") != "build-macos-apps" or metadata.get("version") != PLUGIN_VERSION:
-        raise RuntimeError("开发 Skills 的来源或版本不符合固定依赖。")
-    missing = [name for name in SKILLS if not (folder / "skills" / name / "SKILL.md").is_file()]
-    if missing:
-        raise RuntimeError("开发 Skills 缺失: " + ", ".join(missing))
-
-
-def ensure_plugin_cache(root):
-    target = root / f"build-macos-apps-{PLUGIN_REVISION}"
-    if target.exists():
-        verify_plugin(target)
-        if (target / "source-revision.txt").read_text().strip() != PLUGIN_REVISION:
-            raise RuntimeError("现有依赖目录的 revision 不符；保留目录，请检查。")
-        return target
-    with tempfile.TemporaryDirectory(prefix=".upstream-", dir=str(root)) as temp:
-        checkout = Path(temp) / "checkout"
-        run(["git", "init", "--quiet", str(checkout)])
-        run(["git", "-C", str(checkout), "sparse-checkout", "init", "--cone"])
-        run(["git", "-C", str(checkout), "sparse-checkout", "set", "plugins/build-macos-apps"])
-        run(["git", "-C", str(checkout), "fetch", "--quiet", "--depth", "1", PLUGIN_REPO, PLUGIN_REVISION],
-            timeout=NETWORK_TIMEOUT)
-        run(["git", "-C", str(checkout), "checkout", "--quiet", "--detach", "FETCH_HEAD"])
-        if run(["git", "-C", str(checkout), "rev-parse", "HEAD"]) != PLUGIN_REVISION:
-            raise RuntimeError("下载内容未对应指定 Git revision。")
-        plugin = checkout / "plugins/build-macos-apps"
-        verify_plugin(plugin)
-        # 上游不一定有根 LICENSE；保留插件 manifest 与实际存在的许可文件。
-        for license_file in checkout.glob("LICENSE*"):
-            if license_file.is_file():
-                shutil.copy2(license_file, plugin / ("UPSTREAM-" + license_file.name))
-        (plugin / "source-revision.txt").write_text(PLUGIN_REVISION + "\n")
-        os.replace(plugin, target)
-    return target
-
-
-def install_build_skills(root, destination):
-    folder = ensure_plugin_cache(root)
-    links = {name: destination / f"build-macos-apps--{name}" for name in SKILLS}
-    # 先检查所有冲突，再创建链接；不覆盖用户已有文件或目录。
-    for name, link in links.items():
-        source = folder / "skills" / name
-        if link.exists() or link.is_symlink():
-            if not link.is_symlink() or link.resolve() != source.resolve():
-                raise RuntimeError(f"保留已有内容，安装路径冲突: {link}")
-    destination.mkdir(parents=True, exist_ok=True)
-    for name, link in links.items():
-        if not link.is_symlink():
-            link.symlink_to(folder / "skills" / name, target_is_directory=True)
-    return {"status": "installed", "version": PLUGIN_VERSION,
-            "revision": PLUGIN_REVISION,
-            "skill_paths": {name: str(links[name] / "SKILL.md") for name in SKILLS}}
-
-
-def rea_json(*args, timeout=NETWORK_TIMEOUT):
-    argv = ["npm", "exec", "--yes", f"--package=rea-agents@{REA_VERSION}",
-            "--", "rea", *args, "--format", "json"]
-    proc = execute(argv, timeout)
-    # doctor 不健康、setup 需要人工处理时 REA 退出码为 1，stdout 仍是完整 JSON；由调用方按字段判断。
-    try:
-        value = json.loads(proc.stdout)
-    except ValueError:
-        raise failure(argv, proc) from None
-    if not isinstance(value, dict):
-        raise RuntimeError("REA 返回了非对象 JSON；停止写入并检查已安装版本。")
-    return value
+def install_plugin(codex, name, status):
+    if status["installed"]:
+        if not status["enabled"]:
+            raise RuntimeError(f"{name} 已安装但未启用；请在 Codex 的 Plugins 中启用。")
+        return {"status": "ready", "plugin_id": status["plugin_ids"][0]}
+    candidates = status["plugin_ids"]
+    if not candidates:
+        raise RuntimeError(f"已配置的 marketplace 中没有 {name}；请在 Codex 桌面版的 Plugins 中安装。")
+    if len(candidates) > 1:
+        raise RuntimeError(f"{name} 有多个来源 {candidates}；请让用户选择后运行 "
+                           f"codex plugin add {name}@<marketplace>。")
+    result = json.loads(run([codex, "plugin", "add", candidates[0], "--json"], timeout=NETWORK_TIMEOUT))
+    return {"status": "installed", "plugin_id": candidates[0], "result": result}
 
 
 def verify_rea_plan(plan, with_hopper):
@@ -214,10 +171,12 @@ def guard_rea_registration(rea):
     if current is None or current > version_core(REA_VERSION):
         raise RuntimeError(
             f"Codex 已注册 REA（{' '.join(rea['registered_command'])}），版本更新或无法确定；"
-            "保留现有注册，未执行 setup。当前会话 REA 工具可用时添加 --skip-rea。")
+            "保留现有注册，未执行 setup。")
 
 
 def install_rea(root, with_hopper, rea):
+    if rea["doctor_healthy"] and not with_hopper:
+        return {"status": "ready", "version": rea["registered_package_version"]}
     guard_rea_registration(rea)
     extra = ["--install-hopper"] if with_hopper else []
     plan = rea_json("setup", "--client", "codex", "--dry-run", *extra)
@@ -238,9 +197,7 @@ def install_rea(root, with_hopper, rea):
                            + str(remediation or "查看 rea-doctor.json 修复对应问题。"))
     if with_hopper and "hopperPath" not in result.get("doctor", {}):
         raise RuntimeError("Hopper 未安装: " + str(remediation))
-    report = {"status": "configured", "version": REA_VERSION,
-              "registration_verified": True, "live_connection": "unknown",
-              "next": "重连或重启 Codex 后调用当前会话中的真实 REA 工具。"}
+    report = {"status": "configured", "version": REA_VERSION}
     if remediation:
         report["remediation"] = remediation
     return report
@@ -260,57 +217,56 @@ def write_json(path, value):
 
 def install(args, readiness):
     if not readiness["macos"]:
-        raise RuntimeError("安装必须在用户的 Mac 上运行；此环境不能准备该 Mac 的 MCP 或权限。")
+        raise RuntimeError("安装必须在用户的 Mac 上运行；此环境不能准备该 Mac 的插件、MCP 或权限。")
     root = state_dir()
     root.mkdir(parents=True, exist_ok=True)
     report = {"timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
-              "build_skills": {}, "rea": {}, "errors": [], "user_actions": []}
-    tasks = []
-    if args.skip_build_skills:
-        report["build_skills"] = {"status": "skipped", "reason": "由调用方验证后复用"}
-    elif not readiness["git_ready"]:
-        report["errors"].append("开发 Skills 安装需要可用的 git；请准备 Command Line Tools。")
-    else:
-        tasks.append(("build_skills", lambda: install_build_skills(root, skills_dir())))
-    if args.skip_rea:
-        report["rea"] = {"status": "skipped", "reason": "由调用方验证后复用"}
-    elif not readiness["node_supported"] or not readiness["npm"] or not readiness["npx"]:
-        report["errors"].append("REA 需要 Node.js 22.x >=22.19、24.x >=24.11 或稳定版 26+，以及 npm/npx。")
-    else:
-        tasks.append(("rea", lambda: install_rea(root, args.with_hopper, readiness["rea"])))
-    # 两类依赖分别记录结果，某一项失败后仍处理不依赖它的另一项。
-    for name, action in tasks:
+              "plugins": {}, "rea": {}, "errors": [], "user_actions": []}
+
+    # 各项分别记录结果，某一项失败后仍处理其余项。
+    def attempt(section, key, action):
         try:
-            report[name] = action()
+            section[key] = action()
         except (OSError, ValueError, subprocess.SubprocessError, RuntimeError) as exc:
-            report[name] = {"status": "failed", "error": str(exc)}
-            report["errors"].append(f"{name}: {exc}")
+            section[key] = {"status": "failed", "error": str(exc)}
+            report["errors"].append(f"{key}: {exc}")
+
+    codex = readiness["codex_cli"]
+    if codex:
+        for key, name in PLUGINS.items():
+            attempt(report["plugins"], key,
+                    lambda: install_plugin(codex, name, readiness["plugins"][key]))
+    else:
+        report["errors"].append("插件安装需要 codex CLI；请安装 Codex CLI 或在 Codex 桌面版的 Plugins 中安装。")
+    if isinstance(readiness["rea"], dict):
+        attempt(report, "rea", lambda: install_rea(root, args.with_hopper, readiness["rea"]))
+    else:
+        report["errors"].append("REA 需要 Node.js 22.x >=22.19、24.x >=24.11 或稳定版 26+，以及 npm/npx。")
+
     if report["rea"].get("remediation"):
         report["user_actions"].append("REA: " + report["rea"]["remediation"])
     if not readiness["swift"]:
         report["user_actions"].append("准备可用的 Swift 工具链；需要 Xcode 的工程再安装或选择完整 Xcode。")
-    report["user_actions"].extend([
-        "在本地客户端开启 Computer Use 的 server 和 skill；已开启时复用。",
-        "按提示授予屏幕录制、辅助功能和本次目标 App 访问权限；已授予时复用。",
-        "新配置尚未加载时重连或重启 Codex，随后在活动会话验证 REA 和 GUI 操作。",
-    ])
+    report["user_actions"].append("按系统提示授予 Computer Use 屏幕录制和辅助功能权限，并允许访问目标 App；已授予时复用。")
+    changed = [item for item in (*report["plugins"].values(), report["rea"])
+               if item.get("status") in ("installed", "configured")]
+    if changed:
+        report["user_actions"].append("重启 Codex 加载新安装的插件和 MCP，随后在活动会话验证三个工具。")
     report["status"] = "partial" if report["errors"] else "dependencies_prepared"
     write_json(root / "installation.json", report)
     return report
 
 
 def main():
-    parser = argparse.ArgumentParser(description=__doc__)
+    parser = argparse.ArgumentParser(description="检查并准备 Computer Use、Build macOS Apps 插件与 REA MCP，仅配置 Codex。")
     mode = parser.add_mutually_exclusive_group()
     mode.add_argument("--check", action="store_true",
                       help="只读检查，不写配置；首次运行会把 rea-agents 下载到 npm 缓存")
-    mode.add_argument("--install", action="store_true", help="准备依赖，仅配置 Codex")
-    parser.add_argument("--skip-rea", action="store_true")
-    parser.add_argument("--skip-build-skills", action="store_true")
+    mode.add_argument("--install", action="store_true", help="安装缺失的依赖，已就绪的项直接复用")
     parser.add_argument("--with-hopper", action="store_true", help="用户明确选择时安装 Hopper")
     args = parser.parse_args()
-    if args.with_hopper and (not args.install or args.skip_rea):
-        parser.error("--with-hopper 需要 --install，且不能同时跳过 REA")
+    if args.with_hopper and not args.install:
+        parser.error("--with-hopper 需要 --install")
     try:
         readiness = check()
         report = install(args, readiness) if args.install else {"status": "checked", **readiness}

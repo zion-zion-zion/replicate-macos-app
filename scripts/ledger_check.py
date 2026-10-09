@@ -4,17 +4,15 @@ import re
 from collections import Counter
 from pathlib import Path
 
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 ENTRY_KINDS = (
     "menu", "context_menu", "toolbar", "window", "settings", "shortcut", "document_type",
     "url_scheme", "service", "applescript", "app_intent", "drag_drop", "dock_menu",
     "menu_bar_extra", "extension", "notification", "lifecycle",
 )
-SOURCES = ("gui", "bundle", "rea", "user")
-EVIDENCE_KINDS = ("gui", "file", "bundle", "rea", "log")
-INVESTIGATION = ("hypothesis", "observed", "verified", "blocked")
-IMPLEMENTATION = ("pending", "implemented", "blocked")
-VALIDATION = ("pending", "passed", "failed", "blocked")
+EVIDENCE_KINDS = ("gui", "file", "rea", "log", "user")
+FEATURE_STATUS = ("hypothesis", "observed", "implemented", "passed", "blocked")
+BLOCKER_KINDS = ("account", "server", "hardware", "license", "entitlement", "user")
 SCENARIO_KINDS = ("gui", "file", "automated")
 SCENARIO_STATUS = ("pending", "passed", "failed", "blocked")
 
@@ -32,7 +30,6 @@ class Checker:
     def __init__(self, root):
         self.root = root
         self.errors = []
-        self.warnings = []
 
     def evidence(self, owner, items, require_file=False):
         if not isinstance(items, list):
@@ -54,52 +51,54 @@ class Checker:
         if require_file and files == 0:
             self.errors.append(f"{owner}: 需要至少一个存在的证据文件")
 
-    def blocker(self, owner, item, statuses):
-        blocked = "blocked" in statuses
-        if blocked and not nonempty_text(item.get("blocker")):
-            self.errors.append(f"{owner}: 状态为 blocked 时需要填写 blocker")
-        if not blocked and item.get("blocker") is not None:
-            self.errors.append(f"{owner}: 填写了 blocker，但没有任何状态为 blocked")
+    def blocker(self, owner, item, blocked):
+        value = item.get("blocker")
+        if blocked:
+            if (not isinstance(value, dict) or value.get("kind") not in BLOCKER_KINDS
+                    or not nonempty_text(value.get("detail"))):
+                self.errors.append(f"{owner}: blocked 时 blocker 需要 kind（{'/'.join(BLOCKER_KINDS)}）和 detail")
+        elif value is not None:
+            self.errors.append(f"{owner}: 填写了 blocker，但状态不是 blocked")
 
-    def feature(self, item):
+    def inventory(self, items, feature_ids):
+        for index, item in enumerate(items):
+            owner = f"inventory[{index}]"
+            if item.get("kind") not in ENTRY_KINDS or not nonempty_text(item.get("path")):
+                self.errors.append(f"{owner}: 需要合法的 kind 和 path，kind 取值见 ledger.md")
+            if ("feature" in item) == ("skip" in item):
+                self.errors.append(f"{owner}: feature 与 skip 需要二选一")
+            elif "feature" in item and (not isinstance(item["feature"], str)
+                                        or item["feature"] not in feature_ids):
+                self.errors.append(f"{owner}: 指向不存在的功能 {item['feature']}")
+            elif "skip" in item and not nonempty_text(item["skip"]):
+                self.errors.append(f"{owner}: skip 需要写明原因")
+        keys = Counter((str(item.get("kind")), str(item.get("path"))) for item in items)
+        for (kind, path), count in sorted(keys.items()):
+            if count > 1:
+                self.errors.append(f"inventory: 入口重复 {kind} {path}")
+
+    def feature(self, item, entry_count):
         owner = item.get("id", "<缺少 id>")
         if not re.fullmatch(r"F-\d{3,}", str(item.get("id"))):
             self.errors.append(f"{owner}: id 格式应为 F-001")
         if not nonempty_text(item.get("name")):
             self.errors.append(f"{owner}: 缺少 name")
-        entries = item.get("entries")
-        if not isinstance(entries, list) or not entries:
-            self.errors.append(f"{owner}: entries 需要至少一个入口")
-        else:
-            for entry in entries:
-                if (not isinstance(entry, dict) or entry.get("kind") not in ENTRY_KINDS
-                        or not nonempty_text(entry.get("path"))):
-                    self.errors.append(f"{owner}: 入口需要合法的 kind 和 path，kind 取值见 workflow.md")
-        source = item.get("source")
-        if not isinstance(source, list) or not source or any(value not in SOURCES for value in source):
-            self.errors.append(f"{owner}: source 需要是 {'/'.join(SOURCES)} 的非空数组")
         if not text_list(item.get("preconditions")):
             self.errors.append(f"{owner}: preconditions 必须是文本数组")
         if not text_list(item.get("expected")):
             self.errors.append(f"{owner}: expected 必须是文本数组")
-        investigation = item.get("investigation_status")
-        implementation = item.get("implementation_status")
-        validation = item.get("validation_status")
-        for field, value, allowed in (("investigation_status", investigation, INVESTIGATION),
-                                      ("implementation_status", implementation, IMPLEMENTATION),
-                                      ("validation_status", validation, VALIDATION)):
-            if value not in allowed:
-                self.errors.append(f"{owner}: {field} 取值应为 {'/'.join(allowed)}")
+        status = item.get("status")
+        if status not in FEATURE_STATUS:
+            self.errors.append(f"{owner}: status 取值应为 {'/'.join(FEATURE_STATUS)}")
         self.evidence(owner, item.get("evidence"))
-        if investigation in ("observed", "verified") and not item.get("evidence"):
-            self.errors.append(f"{owner}: 调查状态为 {investigation} 时需要证据")
-        if investigation in ("observed", "verified") and not item.get("expected"):
-            self.errors.append(f"{owner}: 调查状态为 {investigation} 时需要写明 expected")
-        if validation == "passed" and implementation != "implemented":
-            self.errors.append(f"{owner}: 验证通过的功能必须已实现")
-        if implementation == "implemented" and investigation == "hypothesis":
-            self.warnings.append(f"{owner}: 实现所依据的行为仍是 hypothesis，尚未实际观察")
-        self.blocker(owner, item, (investigation, implementation, validation))
+        if status in ("observed", "implemented", "passed"):
+            if not item.get("evidence"):
+                self.errors.append(f"{owner}: 状态为 {status} 时需要证据")
+            if not item.get("expected"):
+                self.errors.append(f"{owner}: 状态为 {status} 时需要写明 expected")
+        if entry_count == 0:
+            self.errors.append(f"{owner}: inventory 中没有指向该功能的入口")
+        self.blocker(owner, item, status == "blocked")
 
     def side(self, owner, value, require_file):
         if not isinstance(value, dict):
@@ -144,7 +143,7 @@ class Checker:
                     self.errors.append(f"{owner}: 通过的场景需要记录 {side}.result")
         if status == "failed" and not item.get("differences"):
             self.errors.append(f"{owner}: 失败的场景需要写明 differences")
-        self.blocker(owner, item, (status,))
+        self.blocker(owner, item, status == "blocked")
 
 
 def load(path, checker):
@@ -157,29 +156,35 @@ def load(path, checker):
     return data
 
 
+def objects(checker, name, values):
+    if not isinstance(values, list):
+        checker.errors.append(f"{name} 必须是数组")
+        return []
+    if not all(isinstance(item, dict) for item in values):
+        checker.errors.append(f"{name}: 每一项必须是对象")
+    return [item for item in values if isinstance(item, dict)]
+
+
 def check(root, final):
     checker = Checker(root)
     ledger = load(root / "feature-ledger.json", checker)
     scenario_file = load(root / "scenarios.json", checker)
     if ledger is None or scenario_file is None:
         return checker, {}
-    collections = {}
-    for name, values in (("features", ledger.get("features")),
-                         ("scenarios", scenario_file.get("scenarios"))):
-        if not isinstance(values, list):
-            checker.errors.append(f"{name} 必须是数组")
-            values = []
-        if not all(isinstance(item, dict) for item in values):
-            checker.errors.append(f"{name}: 每一项必须是对象")
-        collections[name] = [item for item in values if isinstance(item, dict)]
-        ids = [item.get("id") for item in collections[name]]
-        for duplicate in sorted(key for key, count in Counter(ids).items() if count > 1):
+    inventory = objects(checker, "inventory", ledger.get("inventory"))
+    features = objects(checker, "features", ledger.get("features"))
+    scenarios = objects(checker, "scenarios", scenario_file.get("scenarios"))
+    for name, values in (("features", features), ("scenarios", scenarios)):
+        ids = Counter(item.get("id") for item in values)
+        for duplicate in sorted(key for key, count in ids.items() if count > 1):
             checker.errors.append(f"{name}: ID 重复 {duplicate}")
-    features, scenarios = collections["features"], collections["scenarios"]
-    absent = ledger.get("absent_entry_kinds", {})
+
     feature_ids = {item.get("id") for item in features}
+    checker.inventory(inventory, feature_ids)
+    entry_counts = Counter(item["feature"] for item in inventory
+                           if isinstance(item.get("feature"), str))
     for item in features:
-        checker.feature(item)
+        checker.feature(item, entry_counts[item.get("id")])
     for item in scenarios:
         checker.scenario(item, feature_ids)
 
@@ -191,48 +196,43 @@ def check(root, final):
                 linked[feature_id].append(item.get("status"))
     for item in features:
         owner, statuses = item.get("id"), linked.get(item.get("id"), [])
-        if item.get("validation_status") == "passed":
+        if item.get("status") == "passed":
             if "passed" not in statuses:
-                checker.errors.append(f"{owner}: 验证通过需要至少一个通过的关联场景")
+                checker.errors.append(f"{owner}: passed 需要至少一个通过的关联场景")
             if "failed" in statuses:
-                checker.errors.append(f"{owner}: 仍有失败的关联场景，不能标为验证通过")
+                checker.errors.append(f"{owner}: 仍有失败的关联场景，不能标为 passed")
 
+    absent = ledger.get("absent_entry_kinds", {})
     if not isinstance(absent, dict):
         checker.errors.append("absent_entry_kinds 必须是对象")
         absent = {}
     for kind, note in absent.items():
         if kind not in ENTRY_KINDS or not nonempty_text(note):
             checker.errors.append(f"absent_entry_kinds.{kind}: 需要合法的入口类别和不存在的依据")
-    covered = sorted({entry.get("kind") for item in features
-                      for entry in (item.get("entries") if isinstance(item.get("entries"), list) else [])
-                      if isinstance(entry, dict) and entry.get("kind") in ENTRY_KINDS})
+    # 只有 skip 项的类别不算覆盖，需要在 absent_entry_kinds 写明依据。
+    covered = sorted({item.get("kind") for item in inventory
+                      if "feature" in item and item.get("kind") in ENTRY_KINDS})
     for kind in covered:
         if kind in absent:
-            checker.errors.append(f"absent_entry_kinds.{kind}: 已有功能使用该入口类别，不能同时标为不存在")
+            checker.errors.append(f"absent_entry_kinds.{kind}: 已有入口指向功能，不能同时标为不存在")
     unchecked = [kind for kind in ENTRY_KINDS if kind not in covered and kind not in absent]
 
     if final:
         for item in features:
-            statuses = (item.get("investigation_status"), item.get("implementation_status"),
-                        item.get("validation_status"))
-            if "blocked" in statuses:
-                continue
-            if item.get("implementation_status") != "implemented" or item.get("validation_status") != "passed":
-                checker.errors.append(f"{item.get('id')}: 交付前需要已实现并验证通过，或标为 blocked")
-            if not linked.get(item.get("id")):
-                checker.errors.append(f"{item.get('id')}: 交付前需要至少一个关联场景")
+            if item.get("status") not in ("passed", "blocked"):
+                checker.errors.append(f"{item.get('id')}: 交付前需要 passed 或 blocked")
         for item in scenarios:
             if item.get("status") not in ("passed", "blocked"):
-                checker.errors.append(f"{item.get('id')}: 交付前场景需要通过或标为 blocked")
+                checker.errors.append(f"{item.get('id')}: 交付前场景需要 passed 或 blocked")
         for kind in unchecked:
-            checker.errors.append(f"入口类别 {kind}: 交付前需要有对应功能，或在 absent_entry_kinds 写明不存在的依据")
+            checker.errors.append(f"入口类别 {kind}: 交付前需要有指向功能的入口，或在 absent_entry_kinds 写明不存在的依据")
 
     summary = {
-        "features": {
-            "total": len(features),
-            **{field: dict(Counter(item.get(field) for item in features))
-               for field in ("investigation_status", "implementation_status", "validation_status")},
-        },
+        "inventory": {"total": len(inventory),
+                      "mapped": sum(1 for item in inventory if "feature" in item),
+                      "skipped": sum(1 for item in inventory if "skip" in item)},
+        "features": {"total": len(features),
+                     "status": dict(Counter(item.get("status") for item in features))},
         "scenarios": {"total": len(scenarios),
                       "status": dict(Counter(item.get("status") for item in scenarios))},
         "entry_kinds": {"covered": covered, "absent": sorted(absent), "unchecked": unchecked},
@@ -241,14 +241,14 @@ def check(root, final):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="校验复刻项目的功能清单、场景与证据。")
+    parser = argparse.ArgumentParser(description="校验复刻项目的入口清单、功能、场景与证据。")
     parser.add_argument("project_dir", type=Path)
-    parser.add_argument("--final", action="store_true", help="交付前检查：所有功能和场景都需要完成或标为 blocked")
+    parser.add_argument("--final", action="store_true", help="交付前检查：所有功能和场景都需要 passed 或 blocked")
     args = parser.parse_args()
     root = args.project_dir.expanduser().resolve() / "replica"
     checker, summary = check(root, args.final)
-    print(json.dumps({"final": args.final, **summary, "errors": checker.errors,
-                      "warnings": checker.warnings}, ensure_ascii=False, indent=2))
+    print(json.dumps({"final": args.final, **summary, "errors": checker.errors},
+                     ensure_ascii=False, indent=2))
     raise SystemExit(1 if checker.errors else 0)
 
 

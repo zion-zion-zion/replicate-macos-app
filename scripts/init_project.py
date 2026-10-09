@@ -1,12 +1,10 @@
-#!/usr/bin/env python3
-"""初始化复刻项目的证据文件，不覆盖已有记录。"""
-
 import argparse
 import json
 import plistlib
 import subprocess
 from pathlib import Path
 
+SCHEMA_VERSION = 3
 PROGRESS = """# 复刻进度
 
 ## 目标
@@ -17,20 +15,15 @@ PROGRESS = """# 复刻进度
 
 ## 当前阶段
 
-安装准备
+开始
 
 ## 下一步
 
-- 完成安装准备；需要重启 Codex 时，重启后先读本文件和功能清单再继续。
+- 在当前会话确认 Computer Use、REA 和 Build macOS Apps 可用。
 
 ## 构建与启动
 
 - 命令：建立 `script/build_and_run.sh` 后填写
-
-## 最近一次通过验证
-
-- commit：
-- 场景：
 
 ## 等待用户处理
 
@@ -57,7 +50,7 @@ def macos_identity():
 
 
 def main():
-    parser = argparse.ArgumentParser(description=__doc__)
+    parser = argparse.ArgumentParser(description="初始化复刻项目的记录文件，不覆盖已有记录。")
     parser.add_argument("project_dir", type=Path)
     parser.add_argument("--app-path", required=True, type=Path)
     args = parser.parse_args()
@@ -69,11 +62,11 @@ def main():
     (root / "evidence").mkdir(parents=True, exist_ok=True)
     items = {
         "feature-ledger.json": json.dumps(
-            {"schema_version": 2, "app": identity, "macos": macos,
-             "absent_entry_kinds": {}, "features": []},
+            {"schema_version": SCHEMA_VERSION, "app": identity, "macos": macos,
+             "inventory": [], "absent_entry_kinds": {}, "features": []},
             ensure_ascii=False, indent=2) + "\n",
         "scenarios.json": json.dumps(
-            {"schema_version": 2, "scenarios": []}, indent=2) + "\n",
+            {"schema_version": SCHEMA_VERSION, "scenarios": []}, indent=2) + "\n",
         "progress.md": PROGRESS.format(**identity, macos_version=macos["version"],
                                        macos_build=macos["build"]),
     }
