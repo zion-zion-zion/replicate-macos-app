@@ -1,8 +1,15 @@
 # replicate-macos-app
 
-将闭源 macOS App 尽可能完整地复现为**可独立运行、拥有完整源码的参考 App**。面向在 Mac 上工作的 Codex，允许按目标自由组合 GUI/AX、REA、静态与动态分析、文件和网络观察、自写工具、第三方组件及人工证据。
+一个 Codex Skill：把闭源的 macOS App 复刻成一个拥有完整源码、可以独立构建运行的新 App。
 
-交付的源码是参考 App 的真实实现，不声称恢复了原版的原始源码。最终要求是完整功能、真实状态、独立构建运行和可验证行为，不能靠调用原版二进制、占位按钮或硬编码测试结果完成。
+- 复刻版覆盖原版的全部正常功能，状态变化、文件读写、错误处理和重启恢复都是真实实现。
+- 调查原版时，Codex 按具体问题选择方法：GUI 和辅助功能（AX）自动化、逆向分析、静态和动态分析、文件和网络观察、自写脚本，或请你提供信息。
+- 复刻版的源码是依据原版行为重新编写的实现。
+
+## 运行要求
+
+- 在原版 App 所在的 Mac 上使用 Codex。
+- 默认工具组：Build macOS Apps 插件、Computer Use 插件和 REA（逆向分析 MCP 与 Skill，固定 `rea-agents@6.1.0`）。首次使用时 Skill 会检查并按需安装，详见 [setup.md](references/setup.md)。也可以改用其他工具；缺少某一项时，不依赖它的工作照常进行。
 
 ## 安装
 
@@ -18,64 +25,62 @@ npx skills add https://github.com/zion-zion-zion/replicate-macos-app --skill rep
 npx skills add https://github.com/zion-zion-zion/replicate-macos-app --skill replicate-macos-app --agent codex --global
 ```
 
-安装命令只复制 Skill 指令、脚本和参考资料。首次使用时复用当前可用能力；需要准备默认工具组时按 [setup.md](references/setup.md) 安装 Build macOS Apps、Computer Use、REA MCP 与 REA Skill。安装器固定使用 `rea-agents@6.1.0`。
-
-默认工具组之外，也可以使用适合目标的其他工具与框架；缺少某一项不会阻塞不依赖它的工作。系统权限、账号和许可证只在实际需要时由用户完成，不能由安装成功推断当前会话已连接或原版已经可操作。
+安装命令只复制 Skill 的说明、脚本和参考资料，不安装任何依赖。
 
 ## 使用
 
-在 Mac 上的 Codex 会话中提供目标 App 和工作目录：
+完整复刻：
 
 ```text
 使用 $replicate-macos-app，完整复刻 /Applications/目标应用.app，
 把项目放到 ~/Projects/目标应用复刻。
-目标是构造拥有完整源码、可以独立运行的参考 App；
-自主选择所需调查和实现方法，完成全功能盘点、实现和原版对照验证。
 ```
 
-只准备环境：
+只准备工具：
 
 ```text
 使用 $replicate-macos-app，只完成安装准备并核实连接。
 ```
 
-显式调用本 Skill 或明确要求准备环境时，按 setup.md 处理必要依赖安装；隐式启用时先说明安装范围并取得同意。额外付费、系统安全变更和对外发布仍需对应授权。
+## 需要你做的事
+
+- **同意安装**：显式调用本 Skill 时，Codex 直接安装默认工具组；Skill 被自动触发时，会先征求你的同意。付费、系统安全设置变更和对外发布会单独征求同意。
+- **授予权限**：按系统提示授予屏幕录制和辅助功能权限；原版需要登录或许可证时，由你自己完成。
+- **试用反馈**：试用复刻版，指出和原版不一样的地方。
 
 ## 工作流程
 
-1. 固定原版与工作区，初始化功能、场景、进度和 `reference-manifest.json`；已有记录保持不变。
-2. 建立完整入口与依赖地图，按具体未知问题选择方法。
-3. 用静态线索、运行时实验和输入输出证据调查行为；必要时扩展工具、编写脚本或拆分子任务。
-4. 采用适合的架构和可用组件实现完整参考 App。
-5. 在原版 A 和参考 B 上执行对应场景，检查界面、功能、状态、文件、异常与恢复，持续修复差异。
-6. 从交付源码构建，并在无 A 和原版私有数据的干净 macOS 环境中验证独立运行与状态重置。
-7. 固定 B 的源码修订和制品摘要，交付源码、可运行 App、构建/启动/重置方法、覆盖记录和真实差异。
+1. 确定原版和项目目录，初始化记录。
+2. 准备并验证要用的工具。
+3. 清点原版的全部入口和功能。
+4. 用实验调查每个功能的实际行为。
+5. 实现复刻版。
+6. 在原版和复刻版上运行相同的场景并修复差异；再在没有原版的干净 macOS 上验证复刻版能独立运行。
+7. 固定版本，交付源码、可运行的 App、构建和重置方法、覆盖记录和已知差异。
 
-## 脚本与验证
-
-初始化与清单检查：
+## 脚本与测试
 
 ```bash
-python3 scripts/init_project.py PROJECT_DIR --app-path APP_PATH --skip-ax
-python3 scripts/ledger_check.py PROJECT_DIR
-python3 scripts/ledger_check.py PROJECT_DIR --final
+python3 scripts/init_project.py PROJECT_DIR --app-path APP_PATH   # 初始化记录；加 --skip-ax 跳过 AX 工具编译
+python3 scripts/ledger_check.py PROJECT_DIR                       # 检查记录的结构
+python3 scripts/ledger_check.py PROJECT_DIR --final               # 交付前检查
 ```
 
-不传 `--skip-ax` 时编译 AX 工具，编译失败报告为 `unavailable`，其余项目记录仍可使用。已有项目只补建缺失的记录文件，不覆盖原来的进度、功能和场景。原版身份或版本与旧项目不一致时停止，防止混用证据。
+- 重复运行 `init_project.py` 只补建缺失的文件，已有记录保持不变。原版的路径、bundle identifier 或版本与已有记录不同时，它报错退出，避免混用不同版本的证据。
+- AX 工具编译失败时报告为 `unavailable`，其余记录照常创建。
+- `ledger_check.py` 检查记录的结构和关联，复刻版的实际表现另外验收。
 
-通用的 `static` 和 `runtime` 证据类型可以记录任意分析工具的输出。最终检查会拒绝空功能清单和空场景。它只校验记录，实际 App 验收另外完成；有阻塞必须明确报告。
-
-运行仓库的合成数据测试：
+运行仓库测试（使用合成数据，不需要原版 App）：
 
 ```bash
 python3 -m unittest discover -s tests -v
 ```
 
-测试覆盖初始化、旧项目保留、工具不可用时继续、通用证据以及清单验收。它们不替代真实 macOS 原版探索、AX 权限和参考 App 的独立运行测试。
+测试覆盖初始化、已有项目的保留、AX 工具不可用时继续，以及通用证据和交付前检查。原版的实际探索、AX 权限和复刻版的独立运行需要在真实 Mac 上验证。
 
 ## 卸载
 
-默认工具组为用户级安装，可分别撤销。`<marketplace>` 见 `codex plugin list`：
+默认工具组是用户级安装，可以分别卸载。`<marketplace>` 用 `codex plugin list` 查看：
 
 ```bash
 codex plugin remove build-macos-apps@<marketplace>
@@ -95,23 +100,23 @@ rm -rf ~/.agents/skills/reverse-engineer-anything
 rm -rf ~/.local/share/replicate-macos-app
 ```
 
-移除 Skill：`npx skills remove replicate-macos-app`，全局安装时加 `--global`。额外安装的分析工具按构造记录单独处理，不自动卸载共享依赖。
+移除 Skill：`npx skills remove replicate-macos-app`，全局安装时加 `--global`。复刻过程中另外安装的分析工具记录在各项目的 `progress.md` 中，需要时按记录单独卸载；多个程序共用的依赖保留。
 
 ## 文件
 
 | 路径 | 用途 |
 | --- | --- |
-| [SKILL.md](SKILL.md) | 参考应用构造工作流 |
-| [references/setup.md](references/setup.md) | 默认工具安装与能力核对 |
-| [references/methods.md](references/methods.md) | 按问题选择方法与扩展能力 |
-| [references/ledger.md](references/ledger.md) | 入口、功能、证据和场景格式 |
-| [references/reference-app.md](references/reference-app.md) | 参考实现清单、独立性验收与版本冻结 |
-| [scripts/bootstrap.py](scripts/bootstrap.py) | 默认依赖安装器 |
-| [scripts/init_project.py](scripts/init_project.py) | 初始化项目及参考实现清单，按需编译 AX |
-| [scripts/bundle_scan.py](scripts/bundle_scan.py) | 包结构、入口、文案、资源与模型扫描 |
-| [scripts/ax.swift](scripts/ax.swift) | AX 树导出与元素操作 |
-| [scripts/state_diff.py](scripts/state_diff.py) | 偏好和数据目录快照与差分 |
-| [scripts/ledger_check.py](scripts/ledger_check.py) | 记录与交付前覆盖检查 |
+| [SKILL.md](SKILL.md) | 复刻流程 |
+| [references/setup.md](references/setup.md) | 默认工具组的安装与连接核对 |
+| [references/methods.md](references/methods.md) | 按问题选择调查方法 |
+| [references/ledger.md](references/ledger.md) | 入口、功能、证据和场景的格式 |
+| [references/reference-app.md](references/reference-app.md) | 复刻版的构建记录、独立运行验收与冻结 |
+| [scripts/bootstrap.py](scripts/bootstrap.py) | 默认工具组安装器 |
+| [scripts/init_project.py](scripts/init_project.py) | 初始化项目记录，按需编译 AX 工具 |
+| [scripts/bundle_scan.py](scripts/bundle_scan.py) | 扫描包结构、入口、文案、资源和数据模型 |
+| [scripts/ax.swift](scripts/ax.swift) | 导出 AX 树、操作界面元素 |
+| [scripts/state_diff.py](scripts/state_diff.py) | 偏好设置和数据目录的快照与差分 |
+| [scripts/ledger_check.py](scripts/ledger_check.py) | 记录检查与交付前检查 |
 | [tests/test_workflow.py](tests/test_workflow.py) | 平台无关的回归测试 |
-| [agents/openai.yaml](agents/openai.yaml) | 展示与调用配置 |
+| [agents/openai.yaml](agents/openai.yaml) | Codex 中的展示与调用配置 |
 | [assets/icon.svg](assets/icon.svg) | Skill 图标 |

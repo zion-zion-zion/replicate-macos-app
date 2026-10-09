@@ -1,98 +1,121 @@
 ---
 name: replicate-macos-app
-description: Rebuild a closed-source macOS app as a complete, independently buildable and runnable app with full source code. Use for macOS App 复刻、全功能复刻、闭源软件重建、参考应用构造 and setup-only requests. Investigates with GUI/AX automation, REA, static or dynamic analysis, state and protocol inspection, custom tools or human evidence. Requires local macOS for original-app exploration and execution.
+description: Use when the user wants to replicate (复刻) or rebuild a closed-source macOS app as a standalone app with full source code, or wants only this skill's toolchain installed and checked. Requires the original app on the local Mac.
 ---
 
-# macOS 闭源参考应用构造
+# macOS 闭源 App 复刻
 
-把闭源原版 **A** 尽可能完整地复现为拥有完整源码、可独立构建运行的参考 App **B**。
+## 目标
 
-按实际问题自由组合工具、直接调用 CLI/API、编写分析脚本、使用第三方依赖或拆分子任务；REA、Computer Use 和 Build macOS Apps 是默认能力，按需选用。用户明确指定的当前操作限制仍然有效。
+把闭源的原版 App（下文称 **A**）复刻成新 App（下文称 **B**）。B 要同时满足：
 
-交付范围保持原版的全部正常功能。自主清点、调查、实现、验证和修正；用户提供目标、完成确需人工的授权、体验成品并指出差异。开发可以分步，不把最终目标改成 MVP，不逐项询问是否添加范围内功能。
+- 覆盖 A 的全部正常功能，包括菜单、设置、快捷键、文件读写、错误提示和重启后的状态恢复。
+- 拥有完整源码，可以从源码重新构建。
+- 在没有安装 A 的 Mac 上独立运行。
 
-把本 Skill 的目录记作 `SKILL_DIR`，用绝对路径运行脚本。按需读取：
+B 的源码是依据 A 的行为重新编写的实现，交付时这样向用户说明。
 
-- [references/setup.md](references/setup.md)：准备或修复本地工具。
-- [references/methods.md](references/methods.md)：选择调查、实验和实现方法；现有工具回答不了问题时扩展能力。
-- [references/ledger.md](references/ledger.md)：登记入口、行为、证据和回归场景。
-- [references/reference-app.md](references/reference-app.md)：参考实现清单、独立运行验收和参考版本冻结。
+## 分工
 
-## 1. 建立目标与工作区
+- **你**：清点功能、调查行为、实现、对照验证和修正，全程自主推进。开发可以分阶段，最终交付全部功能；范围内的功能直接实现，无需逐项询问用户。
+- **用户**：指定 A 和项目位置，完成需要本人操作的授权（系统权限、登录、付费），试用 B 并指出差异。
+- **方法**：按具体问题选择，可以组合 GUI 和辅助功能（AX）自动化、逆向分析、静态和动态分析、文件与网络观察、自写脚本、第三方库、子 Agent，或向用户索取证据。默认工具组是 REA（逆向分析工具，提供 MCP 和 Skill）、Computer Use（截屏并操作 GUI）和 Build macOS Apps（构建原生 App 的一组 Skills）。
 
-1. 复用用户已经提供的 App、版本和项目位置。目标未知时只询问 App 名称或路径，解析为本机唯一的 `.app`。项目位置未指定时，优先使用当前空目录或已有复刻项目；否则在当前目录下建立独立项目子目录，不覆盖其他工程。
-2. 确认操作原版的工具实际运行在原版所在的 Mac。远程或 Linux 环境可以做资料整理、代码编辑和平台无关测试，但不能据此声称已观察原版或完成 macOS 验收。
-3. 运行 `python3 "$SKILL_DIR/scripts/init_project.py" PROJECT_DIR --app-path APP_PATH`，创建 `replica/` 中的记录和 `reference-manifest.json`。不使用 AX 时加 `--skip-ax`；AX 编译失败只影响该工具，不阻塞其余调查。旧项目文件保留，继续前先读 `progress.md`、功能清单、场景和参考实现清单。
-4. 记录 A 的版本、构建号、系统、权限、可访问功能及依赖。只在用户尚未选定原型时优先筛选独立运行、核心状态可控制的软件；已选目标的服务端或硬件依赖逐项调查，不能默默删除。
+## 路径与参考文件
 
-用户只要求安装准备时，按 setup.md 完成准备和真实连接核对后停止，不创建参考 App 或开始复刻。
+`SKILL_DIR` 指本 Skill 所在目录，`PROJECT_DIR` 指复刻项目目录。脚本一律用绝对路径运行。所有记录和证据放在 `PROJECT_DIR/replica/`。
 
-## 2. 按任务准备能力
+| 文件 | 何时读取 |
+| --- | --- |
+| [references/setup.md](references/setup.md) | 安装或修复默认工具组 |
+| [references/methods.md](references/methods.md) | 为具体问题挑选调查方法，或现有工具不够用 |
+| [references/ledger.md](references/ledger.md) | 填写入口、功能、证据和对照场景 |
+| [references/reference-app.md](references/reference-app.md) | 填写 `reference-manifest.json`、验收 B 的独立运行、冻结版本 |
 
-先检查当前会话已有能力；需要缺失能力时按 setup.md 准备。对选用的工具做一次真实、范围明确的调用，分别记录“已安装”“会话可调用”“能处理目标”。
+## 授权与数据
 
-默认可用工具包括包扫描、`ax`、状态差分、REA、Computer Use 和原生开发 Skills。也可使用其他反编译器、调试器、运行时插桩、网络与文件追踪、图像分析、格式解析器、自写脚本、其他开发栈或子 Agent。读取实际 schema 或当前官方文档，不假设具体 MCP 工具名存在。
+- 用户明确限制的操作，照其限制执行。
+- 以下操作先取得用户的对应授权：付费购买、使用账号、更改系统安全设置、破坏性的系统修改，以及上传或发布 A 的资源、分析材料和 B 的源码。
+- 只安装当前调查需要的工具，优先复用已有软件和配置；新装的工具在 `progress.md` 记录来源和版本。
+- 调查时使用测试账号、合成文件和隔离目录。修改 A 的设置前保存原值或快照，测试结束后恢复。
+- 写进证据和记录文件的凭据、个人数据先脱敏；证据只保留能复核结论的最小输出。
+- 从 A 提取的资源只作分析证据。交付物只包含 B 的源码、B 的资源，以及已确认使用依据并记录在 `reference-manifest.json` 的组件。
 
-只安装当前调查需要的能力。复用已有依赖和配置，记录新安装项；付费购买、账号访问、系统授权、破坏性系统修改及对外发布需要对应授权。工具不可用时尝试可验证的替代方法，并继续不依赖它的工作。
+## 流程
 
-## 3. 建立并持续修订完整功能地图
+### 1. 确定目标和项目
 
-先形成覆盖全局的入口与依赖清单，再围绕不确定项深入。调查和实现可以交替进行。
+1. 用户已给出的 App、版本和项目位置直接使用。不知道目标时，只问 App 名称或路径，并解析到本机唯一的 `.app`。
+2. 用户没指定项目位置时，用当前空目录或已有的复刻项目；两者都没有时，在当前目录下新建一个项目子目录。
+3. 确认操作 A 的工具运行在 A 所在的 Mac 上。在远程或 Linux 环境中只做资料整理、写代码和平台无关的测试，汇报时说明尚未观察 A、尚未完成 macOS 验收。
+4. 初始化项目：
 
-- 用 `bundle_scan.py PROJECT_DIR` 或其他适合技术栈的方法，检查包结构、声明入口、文案、资源、数据模型、Helper、XPC、扩展和依赖。扫描失败或无输出不等于没有功能。
-- 能读取 AX 时，用 `replica/bin/ax dump BUNDLE_ID` 清点菜单、窗口、设置、快捷键和状态；也可使用 AppleScript、App 的公开接口或其他自动化工具。用实际画面与交互检查布局、自绘控件、拖放、动效和其他结构化接口无法表达的行为。
-- 检查帮助文档、官网和版本说明，将声称存在的功能登记为待验证候选。静态资源、代码与文档提供线索；运行中的行为和实验结果决定规格。
-- 按 ledger.md 登记各入口类别。菜单之外还检查文件关联、URL scheme、系统服务、通知、权限拒绝、撤销重做、多窗口、首次启动、退出和重启恢复。遇到新入口、新状态和隐藏分支时持续补充。
-- 多个入口可指向同一功能，影响行为的每个设置都要登记。标准系统项可以注明由框架提供，但仍检查其实际行为；不能用 `skip` 排除有业务逻辑的正常功能。
+   ```bash
+   python3 "$SKILL_DIR/scripts/init_project.py" PROJECT_DIR --app-path APP_PATH
+   ```
 
-`ledger_check.py PROJECT_DIR` 的入口类别统计用于发现漏项。不存在的类别必须写依据，不能为通过检查而批量填入无依据的说明。
+   它在 `replica/` 下建立功能清单、场景、`progress.md` 和 `reference-manifest.json`，并编译 AX 工具 `replica/bin/ax`。不需要 AX 时加 `--skip-ax`；AX 编译失败只影响这一个工具。已有项目会保留原文件，继续工作前先读 `progress.md`、功能清单、场景和 `reference-manifest.json`。
+5. 在 `progress.md` 补充 A 需要的权限、能访问到的功能和外部依赖（服务端、硬件等）。用户还没选定 A 时，优先推荐能独立运行、核心状态可控的 App；已选定的 A 依赖服务端或硬件时，逐项调查并登记。
 
-## 4. 围绕行为问题选择方法、执行实验
+用户只要求准备工具时，按 setup.md 完成安装和连接核对，然后停止。
 
-每次调查写清：当前未知行为、候选解释、要区分它们的输入或前置状态、采用的方法、实际输出和结论。优先做能减少关键不确定性的实验；低成本方法无效就更换方法，不机械重复 GUI 或全量反编译。
+### 2. 准备工具
 
-按 methods.md 组合静态分析、动态调用观察、断点、文件与数据库差分、网络协议分析、批量输入测试和人工证据。必要时编写新工具；对会改变目标行为的插桩、重签名或补丁，明确记录修改，并在未修改原版上复核外部行为。
+先看当前会话已经能用哪些工具，缺少的按 setup.md 安装。每个准备使用的工具都做一次范围明确的真实调用，在 `progress.md` 分三项记录：是否已安装、当前会话能否调用、能否处理 A。调用 MCP 或 CLI 前，先读取它实际的 schema 或当前官方文档。
 
-使用测试账号、合成文件和隔离目录。修改原版设置前保存原值或快照，测试后恢复。不要把分析中读到的凭据、个人数据或专有资源自动加入交付物。
+某个工具用不了时，换一种能验证结果的方法，同时继续不依赖它的工作。
 
-对已有脚本的常见调用：
+### 3. 清点全部功能
+
+先做一遍覆盖全局的清点，再深入不确定的部分。调查和实现可以穿插进行。
+
+- **静态扫描**：`python3 "$SKILL_DIR/scripts/bundle_scan.py" PROJECT_DIR` 列出包结构、声明的入口、文案、资源、数据模型、Helper、XPC、扩展和依赖，结果写入 `evidence/bundle/`。扫描失败或某类结果为空时，用其他方法继续找。
+- **AX 清点**：先启动 A，再运行 `PROJECT_DIR/replica/bin/ax dump BUNDLE_ID`，列出菜单、窗口、设置、快捷键和状态。也可以用 AppleScript 或 A 的公开接口。
+- **实际操作**：布局、自绘控件、拖放、动效等 AX 读不到的内容，通过实际画面和交互检查。
+- **外部资料**：帮助文档、官网和版本说明里提到的功能，先登记为待验证。
+
+按 ledger.md 的入口类别登记每个入口。菜单之外，还要检查文件关联、URL scheme、系统服务、通知、权限被拒绝时的表现、撤销重做、多窗口、首次启动、退出和重启恢复。系统标准菜单项可以注明“由框架提供”，同时检查它的实际行为；有业务逻辑的入口都登记为功能。
+
+`ledger_check.py` 输出的 `entry_kinds.unchecked` 列出还没处理的入口类别，用来发现漏项。确认 A 没有某类入口时，在 `absent_entry_kinds` 写明依据。
+
+### 4. 调查行为
+
+每次调查在证据里写清：要弄清的行为、几种可能的解释、能区分它们的输入和前置状态、使用的方法、实际输出和结论。先做最能缩小不确定性的实验；低成本的方法没效果就换方法。可选方法见 methods.md。
+
+静态分析、资源和文档提供线索，功能的预期行为以 A 实际运行的结果为准。只有静态线索的功能保持 `hypothesis` 状态。
+
+记录偏好设置和文件变化：
 
 ```bash
-python3 "$SKILL_DIR/scripts/bundle_scan.py" PROJECT_DIR
 python3 "$SKILL_DIR/scripts/state_diff.py" snapshot PROJECT_DIR before --path TEST_DIR
-# 在原版执行待调查操作
+# 在 A 上执行要调查的操作
 python3 "$SKILL_DIR/scripts/state_diff.py" snapshot PROJECT_DIR after --path TEST_DIR
 python3 "$SKILL_DIR/scripts/state_diff.py" diff PROJECT_DIR before after
+# 对 B 拍快照时加 --app-path B_APP_PATH
 ```
 
-把每条有效结论关联到功能 ID 和证据。其他工具的结果用 `static` 或 `runtime` 等证据类型记录工具、参数、目标版本和输出。只有静态推断时保持 `hypothesis`。
+每条结论关联到功能 ID 和证据文件。其他工具的输出用 `static` 或 `runtime` 证据类型登记，写明工具、参数、A 的版本和输出，格式见 ledger.md。
 
-## 5. 实现完整、独立的 B
+### 5. 实现 B
 
-依据已验证行为选择最适合的架构。原生界面通常可用 SwiftUI + AppKit；复杂编辑器、跨平台原型或已有可靠实现有其他合适技术栈时直接采用。内部结构可以与 A 不同。
+- 架构依据已验证的行为来选。原生界面通常用 SwiftUI + AppKit；复杂编辑器等场景有更合适的技术栈时直接采用。B 的内部结构可以和 A 不同，交互习惯和视觉风格与 A 保持一致。
+- 使用 Build macOS Apps 时，读取当前可用的相关 Skills，例如 `build-run-debug`、`swiftpm-macos`、`appkit-interop`、`window-management`。用其他技术栈时，建立同等的构建、启动、日志和测试入口。
+- 可以使用系统框架、开源库、CLI 工具等可合法使用的组件，在 `reference-manifest.json` 记录来源、版本、许可和修改。
+- B 的核心功能全部由交付源码和声明的依赖实现。B 运行时不调用 A，不嵌入 A 的专有核心二进制，也不用截图回放代替功能。
+- B 使用自己的 bundle identifier、配置目录和数据目录。建立可重复的构建和启动命令，每次测试前确认运行的是刚构建的 B。
+- 功能实现完成的标准：状态变化、文件读写、错误处理、持久化、撤销和恢复都是真实逻辑；按钮连到真实操作，数据来自真实状态，测试结果由实际运行产生。
+- A 依赖服务端时，B 按公开协议对接，或自建一个可控的后端，提供真实的状态、重置方法和测试数据，并记录与 A 的差异。账号、原厂服务、硬件、许可证或 entitlement 确实无法满足时，把对应功能标为 `blocked` 并写明原因。
 
-使用 Build macOS Apps 时，读取当前可用的 `build-run-debug`、`swiftpm-macos`、`appkit-interop`、`window-management` 等相关 Skills。采用其他技术栈时建立等价的工程、构建、启动、日志和测试入口。保留原版的交互习惯和视觉风格。
+### 6. 对照验证
 
-允许使用系统框架、开源库、CLI 工具和其他可合法使用的组件，记录来源、版本、许可及修改；从原版提取的资源默认仅作分析证据，纳入可分发 B 前确认使用依据。B 的核心行为必须由交付源码及声明依赖实现，不能调用 A、嵌入 A 的专有核心二进制或通过截图回放代替真实功能。
+1. 给 A 和 B 相同的输入和起始状态，比较界面、快捷键、状态变化、输出文件、错误表现、持久化和重启恢复。场景格式和比较方法见 ledger.md。
+2. 发现差异时，先保存能复现的失败场景，修复后重跑这个场景和受影响的场景。用户反馈的差异也登记进同一份清单，并触发回归。
+3. 反复调查和修正，直到所有能访问的功能都验证过。
+4. 按 reference-app.md 验收 B 的独立运行：从交付源码构建，在没有 A、没有 A 的私有数据、也没有调查工具的干净 macOS 环境中运行，加载测试数据、重置状态并重放场景。
+5. 交付前运行 `python3 "$SKILL_DIR/scripts/ledger_check.py" PROJECT_DIR --final`。它检查记录是否完整；B 是否与 A 等价、能否独立运行，以第 1–4 步的实际结果为准。
 
-使用独立 bundle identifier、配置与数据目录。建立可重复构建和启动命令，确认每次运行的是本次构建的 B。实现真实状态转换、文件读写、错误处理、持久化、撤销和恢复；按钮未连通、固定假数据或针对测试输出硬编码都不能算完成。
+### 7. 冻结并交付
 
-服务端依赖可以通过公开协议或可控制的自建后端实现，但必须提供真实状态与行为并记录 A/B 差异。确实无法实现的账号、原厂服务、硬件、许可证或 entitlement 保留为阻塞，不隐藏、不改写为成功。
-
-## 6. 对照、回归与独立性验收
-
-对 A 和 B 使用同一组输入与起始状态，比较界面、快捷键、状态转换、输出文件、错误行为、持久化和重启恢复。可结合脚本、GUI 和自动化测试；实现过程中反复调查和修正，直到可访问功能完成验证。细节见 ledger.md。
-
-先保留失败复现，再修复并重跑受影响场景。对子 Agent 的产出执行同样验收。用户反馈进入同一清单并触发回归。
-
-按 reference-app.md 另外验证 B：从交付源码构建；在没有 A、原版私有数据和构造工具的干净 macOS 环境中运行；能加载测试数据、重置初始状态并重放场景。不要为此删除用户正在使用的 A，可使用独立测试机、虚拟机或受控测试环境。未执行的检查保持待验证。
-
-交付前运行 `python3 "$SKILL_DIR/scripts/ledger_check.py" PROJECT_DIR --final`。通过只说明清单约束满足，不证明实际全功能等价或独立运行；有阻塞项就明确报告为带阻塞交付，不能声称全部功能完成。
-
-## 7. 冻结参考实现并交付
-
-在 `reference-manifest.json` 记录 B 的源码位置与版本、构建启动和重置命令、依赖、测试输入、构造方法、A/B 保真度与独立性证据、剩余差异。验收后固定参考版本并记录源码修订和二进制摘要；后续修改产生新参考版本。
-
-交付可运行的 `.app`、完整源码、构建启动方法、测试与重置说明、功能覆盖统计、真实阻塞与差异。源码对 B 是真实实现，对 A 是行为替代实现；不声称恢复了 A 的原始源码。
-
-不自动上传或发布 A 的资源、分析材料和 B 的源码；打包、公证和发布按用户要求执行。
+1. 按 reference-app.md 填完 `reference-manifest.json` 并冻结版本：记下验收通过时的源码修订和 `.app` 的 SHA-256。之后再修改 B，就产生新版本。
+2. 交付：可运行的 `.app`、完整源码、构建和启动方法、测试与重置说明、功能覆盖统计、阻塞项和已知差异。有 `blocked` 功能时，明确说明这是带阻塞的交付，并列出阻塞项。
+3. 打包、公证和发布在用户要求时执行。
