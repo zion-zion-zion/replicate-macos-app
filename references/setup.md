@@ -1,0 +1,79 @@
+# 安装准备与连接核对
+
+## 运行方式
+
+通过 Skills CLI 从 GitHub 安装本 Skill：
+
+```bash
+npx skills add https://github.com/zion-zion-zion/replicate-macos-app --skill replicate-macos-app
+```
+
+默认安装到当前项目。需要在 Codex 中跨项目使用时，添加 `--agent codex --global`；以 CLI 输出的路径作为本 Skill 的实际目录。Skills CLI 当前版本要求 Node.js >=22.20.0。
+
+本 Skill 面向运行在 Mac 上的 Codex。首次调用执行安装脚本；导入 Skill 本身没有可保证执行的安装钩子。也可将完整文件夹放入 `~/.agents/skills/replicate-macos-app`，或让 `$skill-installer` 从包含该目录的 Git 仓库安装。分享时包含 `SKILL.md`、`agents/`、`assets/`、`scripts/` 和 `references/`。
+
+在 ChatGPT Work 的 Skills 页面保存本 Skill，不代表用户 Mac 已安装 REA。本地安装结果必须在那台 Mac 上检查。
+
+```bash
+python3 /absolute/path/replicate-macos-app/scripts/bootstrap.py --check
+python3 /absolute/path/replicate-macos-app/scripts/bootstrap.py --install
+```
+
+支持 `--skip-rea`、`--skip-build-skills`。仅在当前会话实际验证相应依赖后跳过。`--with-hopper` 只在用户明确选择安装 Hopper 时添加。
+
+## 自动完成的内容
+
+安装脚本限定配置 Codex 的 REA MCP，并安装包内匹配版本的 `reverse-engineer-anything` 工作流。使用官方 setup 保留无关配置和备份，不覆盖整份 `config.toml`。固定 `rea-agents@6.1.0`；已连接可用的 REA 应跳过，避免替换或降级。升级时另行读取当前官方说明并核实版本。
+
+下载官方 `build-macos-apps` 的固定 Git revision，将完整插件内容及原有许可声明保存在本机专用依赖目录，再在 `~/.agents/skills` 创建指向 11 个 Skill 的链接。保留原始名称和参考资料。已有官方插件且全部 Skills 可用时跳过。该操作安装开发 Skills，不声称完整插件及三个 Commands 已注册。
+
+| Skill | 使用场景 |
+| --- | --- |
+| `build-run-debug` | 构建、启动、调试 |
+| `swiftpm-macos` | SwiftPM 与 App bundle |
+| `swiftui-patterns` | SwiftUI 界面 |
+| `appkit-interop` | 菜单、响应链、AppKit 桥接 |
+| `window-management` | 窗口、恢复与多窗口 |
+| `test-triage` | 测试排查 |
+| `telemetry` | 运行日志 |
+| `signing-entitlements` | 本地签名与权限 |
+| `view-refactor` | View 结构调整 |
+| `liquid-glass` | 需要时使用现代视觉 API |
+| `packaging-notarization` | 按要求打包与公证 |
+
+## 用户需要开启或准备的内容
+
+| 检查项 | 实际缺失时的用户操作 |
+| --- | --- |
+| 本地 GUI 控制 | 在桌面客户端 Plugins 中安装或启用 Computer Use，开启 server 和 skill 开关 |
+| 系统权限 | 按提示在“系统设置 → 隐私与安全性”授予实际组件屏幕录制和辅助功能权限 |
+| App 访问 | 客户端出现提示时允许访问本次目标 App |
+| Node.js 与 npm | 安装 Node.js 22.x >=22.19、24.x >=24.11，或稳定版 26+，确认 `node`、`npm`、`npx` 可执行；23、25、prerelease 不支持 |
+| Python、git、Swift | 准备 Command Line Tools；需要完整 Xcode 的工程再准备 Xcode。可以提示 `xcode-select --install` 并完成系统安装窗口 |
+| 新配置尚未加载 | 重连或重启 Codex，再验证实际工具 |
+| 原版尚未可用 | 安装并启动原版，按需要自行完成登录或许可证步骤 |
+
+先完成可自动执行的安装，集中列出真正缺失的用户操作。系统权限需用户亲自授权，不用 TCC 数据库或 `tccutil reset` 自动开启。辅助功能权限与读取 Accessibility Tree 是两件事。
+
+## Readiness 与连接验证
+
+```bash
+npm exec --yes --package=rea-agents@6.1.0 -- rea doctor --client codex --skill --format json
+npm exec --yes --package=rea-agents@6.1.0 -- rea doctor --provider ghidra --format json
+```
+
+按任务限定 doctor 范围。缺失 Hopper 不会阻止无须原生反编译的 bundle、资源和 JavaScript 调查。Hopper/Ghidra 仅在功能调查需要时准备；CLI 启动不证明能分析真实目标。
+
+doctor 检查注册和依赖，无法证明当前会话已加载 MCP。连接后读取真实工具列表，调用一个目标无关或针对已指定 App 的只读操作，不硬编码工具名。再获取 App 画面并在授权范围内操作一次，验证 GUI 能力。
+
+若终端可运行 REA 而桌面客户端报 `npx` 或 `node` 找不到，检查该 MCP 的进程 PATH。只修复该 server 启动路径或 env，保留参数、版本和无关 MCP。重连验证，不重装整套依赖。
+
+## 核实依据
+
+2026-10-09 核实 npm 的 `rea-agents@6.1.0`、实际 setup CLI 与下列上游。main、npm 发行版和活动 server 可能不同，以已安装版本 schema 为准。
+
+- REA 安装：https://github.com/morluto/rea/blob/main/docs/installation.md
+- setup 接口：https://github.com/morluto/rea/blob/main/src/cli/setupCommands.ts
+- 开发 Skills：https://github.com/openai/plugins/tree/0722921d5542fc593105c27bd52630babd8b8c2a/plugins/build-macos-apps
+- Skills 发现：https://learn.chatgpt.com/docs/build-skills
+- Computer Use 权限：https://learn.chatgpt.com/docs/computer-use
