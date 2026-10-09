@@ -1,13 +1,13 @@
 ---
 name: replicate-macos-app
-description: Rebuild a closed-source macOS app as a complete, independently buildable and runnable app with full source code. Use for macOS App 复刻、全功能复刻、闭源软件重建、参考应用构造 and setup-only requests. Choose and combine any suitable investigation and implementation methods, including GUI/AX automation, REA, static or dynamic analysis, state and protocol inspection, custom tools and human evidence. Requires local macOS for original-app exploration and execution.
+description: Rebuild a closed-source macOS app as a complete, independently buildable and runnable app with full source code. Use for macOS App 复刻、全功能复刻、闭源软件重建、参考应用构造 and setup-only requests. Investigates with GUI/AX automation, REA, static or dynamic analysis, state and protocol inspection, custom tools or human evidence. Requires local macOS for original-app exploration and execution.
 ---
 
 # macOS 闭源参考应用构造
 
 把闭源原版 **A** 尽可能完整地复现为拥有完整源码、可独立构建运行的参考 App **B**。
 
-构造 B 时不预设技术手段上限。按实际问题自由组合工具、直接调用 CLI/API、编写分析脚本、使用第三方依赖或拆分子任务；REA、Computer Use 和 Build macOS Apps 都是可用能力，不是唯一方案或必须全部通过的门槛。用户明确指定的当前操作限制仍然有效。
+按实际问题自由组合工具、直接调用 CLI/API、编写分析脚本、使用第三方依赖或拆分子任务；REA、Computer Use 和 Build macOS Apps 是默认能力，按需选用。用户明确指定的当前操作限制仍然有效。
 
 交付范围保持原版的全部正常功能。自主清点、调查、实现、验证和修正；用户提供目标、完成确需人工的授权、体验成品并指出差异。开发可以分步，不把最终目标改成 MVP，不逐项询问是否添加范围内功能。
 
@@ -29,15 +29,15 @@ description: Rebuild a closed-source macOS app as a complete, independently buil
 
 ## 2. 按任务准备能力
 
-先检查当前会话已有能力；需要缺失能力时按 setup.md 准备。对选用的工具做一次真实、范围明确的调用，分别记录“已安装”“会话可调用”“能处理目标”，不要把安装报告当成目标验证。
+先检查当前会话已有能力；需要缺失能力时按 setup.md 准备。对选用的工具做一次真实、范围明确的调用，分别记录“已安装”“会话可调用”“能处理目标”。
 
 默认可用工具包括包扫描、`ax`、状态差分、REA、Computer Use 和原生开发 Skills。也可使用其他反编译器、调试器、运行时插桩、网络与文件追踪、图像分析、格式解析器、自写脚本、其他开发栈或子 Agent。读取实际 schema 或当前官方文档，不假设具体 MCP 工具名存在。
 
-只安装当前调查需要的能力。复用已有依赖和配置，记录新安装项；付费购买、账号访问、系统授权、破坏性系统修改及对外发布需要对应授权。“不限制方法”不等于自动获得这些权限。工具不可用时尝试可验证的替代方法，不因某个 provider 缺失而停止整个任务。
+只安装当前调查需要的能力。复用已有依赖和配置，记录新安装项；付费购买、账号访问、系统授权、破坏性系统修改及对外发布需要对应授权。工具不可用时尝试可验证的替代方法，并继续不依赖它的工作。
 
 ## 3. 建立并持续修订完整功能地图
 
-先形成覆盖全局的入口与依赖清单，再围绕不确定项深入；不要求每个 App 采用相同工具顺序，也不要求在开始实现前穷尽所有逆向工作。
+先形成覆盖全局的入口与依赖清单，再围绕不确定项深入。调查和实现可以交替进行。
 
 - 用 `bundle_scan.py PROJECT_DIR` 或其他适合技术栈的方法，检查包结构、声明入口、文案、资源、数据模型、Helper、XPC、扩展和依赖。扫描失败或无输出不等于没有功能。
 - 能读取 AX 时，用 `replica/bin/ax dump BUNDLE_ID` 清点菜单、窗口、设置、快捷键和状态；也可使用 AppleScript、App 的公开接口或其他自动化工具。用实际画面与交互检查布局、自绘控件、拖放、动效和其他结构化接口无法表达的行为。
@@ -45,13 +45,13 @@ description: Rebuild a closed-source macOS app as a complete, independently buil
 - 按 ledger.md 登记各入口类别。菜单之外还检查文件关联、URL scheme、系统服务、通知、权限拒绝、撤销重做、多窗口、首次启动、退出和重启恢复。遇到新入口、新状态和隐藏分支时持续补充。
 - 多个入口可指向同一功能，影响行为的每个设置都要登记。标准系统项可以注明由框架提供，但仍检查其实际行为；不能用 `skip` 排除有业务逻辑的正常功能。
 
-`ledger_check.py PROJECT_DIR` 的入口类别统计用于发现漏项，不是“已经发现所有功能”的证明。不存在的类别必须写依据，不能为通过检查而批量填入无依据的说明。
+`ledger_check.py PROJECT_DIR` 的入口类别统计用于发现漏项。不存在的类别必须写依据，不能为通过检查而批量填入无依据的说明。
 
 ## 4. 围绕行为问题选择方法、执行实验
 
 每次调查写清：当前未知行为、候选解释、要区分它们的输入或前置状态、采用的方法、实际输出和结论。优先做能减少关键不确定性的实验；低成本方法无效就更换方法，不机械重复 GUI 或全量反编译。
 
-按 methods.md 自由组合静态分析、动态调用观察、断点、文件与数据库差分、网络协议分析、批量输入测试和人工证据。必要时编写新工具；对会改变目标行为的插桩、重签名或补丁，明确记录修改，并在未修改原版上复核外部行为。
+按 methods.md 组合静态分析、动态调用观察、断点、文件与数据库差分、网络协议分析、批量输入测试和人工证据。必要时编写新工具；对会改变目标行为的插桩、重签名或补丁，明确记录修改，并在未修改原版上复核外部行为。
 
 使用测试账号、合成文件和隔离目录。修改原版设置前保存原值或快照，测试后恢复。不要把分析中读到的凭据、个人数据或专有资源自动加入交付物。
 
@@ -65,25 +65,25 @@ python3 "$SKILL_DIR/scripts/state_diff.py" snapshot PROJECT_DIR after --path TES
 python3 "$SKILL_DIR/scripts/state_diff.py" diff PROJECT_DIR before after
 ```
 
-把每条有效结论关联到功能 ID 和证据。新增工具不需要新增固定工具白名单；使用 `static` 或 `runtime` 等证据类型记录工具、参数、目标版本和输出。只有静态推断时保持 `hypothesis`，不得标成已观察。
+把每条有效结论关联到功能 ID 和证据。其他工具的结果用 `static` 或 `runtime` 等证据类型记录工具、参数、目标版本和输出。只有静态推断时保持 `hypothesis`。
 
 ## 5. 实现完整、独立的 B
 
-依据已验证行为选择最适合的架构。原生界面通常可用 SwiftUI + AppKit；复杂编辑器、跨平台原型或已有可靠实现有其他合适技术栈时直接采用，不强制用 Swift 重写所有内容，也不要求内部结构与 A 一致。
+依据已验证行为选择最适合的架构。原生界面通常可用 SwiftUI + AppKit；复杂编辑器、跨平台原型或已有可靠实现有其他合适技术栈时直接采用。内部结构可以与 A 不同。
 
-使用 Build macOS Apps 时，读取当前可用的 `build-run-debug`、`swiftpm-macos`、`appkit-interop`、`window-management` 等相关 Skills。采用其他技术栈时建立等价的工程、构建、启动、日志和测试入口。保留原版交互习惯，不擅自改成新的视觉风格。
+使用 Build macOS Apps 时，读取当前可用的 `build-run-debug`、`swiftpm-macos`、`appkit-interop`、`window-management` 等相关 Skills。采用其他技术栈时建立等价的工程、构建、启动、日志和测试入口。保留原版的交互习惯和视觉风格。
 
 允许使用系统框架、开源库、CLI 工具和其他可合法使用的组件，记录来源、版本、许可及修改；从原版提取的资源默认仅作分析证据，纳入可分发 B 前确认使用依据。B 的核心行为必须由交付源码及声明依赖实现，不能调用 A、嵌入 A 的专有核心二进制或通过截图回放代替真实功能。
 
 使用独立 bundle identifier、配置与数据目录。建立可重复构建和启动命令，确认每次运行的是本次构建的 B。实现真实状态转换、文件读写、错误处理、持久化、撤销和恢复；按钮未连通、固定假数据或针对测试输出硬编码都不能算完成。
 
-服务端依赖可以通过公开协议或可控制的自建后端实现，但必须提供真实状态与行为并记录 A/B 差异；仅返回固定响应不等于复现完整服务。确实无法实现的账号、原厂服务、硬件、许可证或 entitlement 保留为阻塞，不隐藏、不改写为成功。
+服务端依赖可以通过公开协议或可控制的自建后端实现，但必须提供真实状态与行为并记录 A/B 差异。确实无法实现的账号、原厂服务、硬件、许可证或 entitlement 保留为阻塞，不隐藏、不改写为成功。
 
 ## 6. 对照、回归与独立性验收
 
 对 A 和 B 使用同一组输入与起始状态，比较界面、快捷键、状态转换、输出文件、错误行为、持久化和重启恢复。可结合脚本、GUI 和自动化测试；实现过程中反复调查和修正，直到可访问功能完成验证。细节见 ledger.md。
 
-先保留失败复现，再修复并重跑受影响场景。对子 Agent 的产出执行同样验收，不能直接相信其完成声明。用户反馈进入同一清单并触发回归。
+先保留失败复现，再修复并重跑受影响场景。对子 Agent 的产出执行同样验收。用户反馈进入同一清单并触发回归。
 
 按 reference-app.md 另外验证 B：从交付源码构建；在没有 A、原版私有数据和构造工具的干净 macOS 环境中运行；能加载测试数据、重置初始状态并重放场景。不要为此删除用户正在使用的 A，可使用独立测试机、虚拟机或受控测试环境。未执行的检查保持待验证。
 

@@ -66,7 +66,6 @@ def build_ax(root):
 
 
 def reference_manifest(identity):
-    # 只生成待填写记录，不把模板或成功初始化视为实际验收。
     return {
         "schema_version": 1,
         "role": "reference_app_construction",

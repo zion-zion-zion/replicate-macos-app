@@ -32,7 +32,7 @@
 {"kind": "menu", "path": "MenuBar > MenuBarItem[App 名] > MenuItem[服务]", "skip": "系统提供的服务子菜单，已验证"}
 ```
 
-AX 可见入口用实际元素路径；其他入口用能定位它的描述，例如 `Dock 菜单 > 新建窗口`。不要求所有入口都通过 AX 发现。
+AX 可见入口用实际元素路径；其他入口用能定位它的描述，例如 `Dock 菜单 > 新建窗口`。
 
 `kind` 的类别如下：
 
@@ -72,7 +72,7 @@ AX 可见入口用实际元素路径；其他入口用能定位它的描述，�
 }
 ```
 
-证据类型只描述来源性质，不限制使用哪个工具：
+证据类型描述来源性质：
 
 | `kind` | 记录要求 |
 | --- | --- |
@@ -94,7 +94,7 @@ AX 可见入口用实际元素路径；其他入口用能定位它的描述，�
 - `passed`：所有已知预期分支完成对应验证；校验器至少要求一个通过的关联场景，并拒绝仍有失败场景的功能。校验器不自动证明分支穷尽。
 - `blocked`：保留功能和未实现分支，`blocker` 填对象 `{"kind": "server", "detail": "具体依赖与已尝试方法"}`。
 
-`blocker.kind` 保留 `account / server / hardware / license / entitlement / user`。缺少某个分析工具先尝试其他方法或在进度中记录待处理，不把工具列表当作不可跨越的边界。非阻塞功能的 `blocker` 为 `null`。
+`blocker.kind` 保留 `account / server / hardware / license / entitlement / user`。缺少某个分析工具时先尝试其他方法，或在进度中记录待处理。非阻塞功能的 `blocker` 为 `null`。
 
 ## 场景
 
@@ -118,7 +118,7 @@ AX 可见入口用实际元素路径；其他入口用能定位它的描述，�
 
 `kind` 为 `script / gui / automated`，状态为 `pending / passed / failed / blocked`。
 
-**script**：可重放脚本，不绑定 AX。脚本路径相对 `replica/`，必须存在且可执行；接口为 `scenarios/S-001.sh BUNDLE_ID OUT_DIR`，分别对 A 和 B 执行。脚本可以使用 AX、AppleScript、CLI、协议或其他适合的方式，但必须真正驱动目标行为。
+**script**：可重放脚本。脚本路径相对 `replica/`，必须存在且可执行；接口为 `scenarios/S-001.sh BUNDLE_ID OUT_DIR`，分别对 A 和 B 执行。脚本可以使用 AX、AppleScript、CLI、协议或其他适合的方式，但必须真正驱动目标行为。
 
 **gui**：用实际画面和输入验证布局、焦点、拖放、动效等。两边都保存截图，统一语言、外观、缩放和窗口条件。Computer Use 是默认能力，也可采用能提供等价证据的方法；不能因为 AX 结构一致就声称视觉一致。
 

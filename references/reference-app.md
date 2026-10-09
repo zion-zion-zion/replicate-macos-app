@@ -2,7 +2,7 @@
 
 ## reference-manifest.json
 
-`init_project.py` 为新旧项目补建此文件，不覆盖已有内容。`schema_version` 为 1，与功能清单的版本独立。字段尚未核实时保留 `null` 或空数组；模板存在不代表验收通过。
+`init_project.py` 为新旧项目补建此文件，不覆盖已有内容。`schema_version` 为 1，与功能清单的版本独立。字段尚未核实时保留 `null` 或空数组。
 
 | 字段 | 填写内容 |
 | --- | --- |
@@ -10,7 +10,7 @@
 | `original` | A 的路径、bundle identifier、名称、版本和构建号 |
 | `created_at` | 本地生成记录的 UTC 时间 |
 | `reference` | B 的名称、bundle identifier、源码目录与修订、构建产物、构建启动和重置命令、fixtures 与依赖 |
-| `construction.methods` | 实际使用的方法、工具版本、目的、证据位置；不限工具供应商 |
+| `construction.methods` | 实际使用的方法、工具版本、目的、证据位置 |
 | `construction.components` | 使用的第三方组件或资源、来源、版本、使用依据和修改情况 |
 | `verification.fidelity` | A/B 行为差分验收的状态和证据 |
 | `verification.independence` | 无 A 与原版私有数据时，B 独立构建运行的状态和证据 |
