@@ -41,11 +41,12 @@ Skills CLI 当前版本要求 Node.js >=22.20.0。安装结果会显示 Skill �
 
 ## 工作流程
 
-1. 检查环境，配置 REA MCP 和 11 个官方 macOS 开发 Skills。
-2. 用 Computer Use 探索原版操作，用 REA 调查资源、格式与相关逻辑。
-3. 记录功能清单、测试场景和证据，区分推断与实测行为。
-4. 默认使用 SwiftUI + AppKit 独立实现，使用与原版隔离的配置和数据。
-5. 对原版与复刻版执行相同场景，修正差异后交付可运行的 `.app`、源码和验证记录。
+1. 确定目标 App 和项目目录，初始化功能清单、场景和进度记录。
+2. 检查环境，配置 REA MCP 和 11 个官方 macOS 开发 Skills。
+3. 盘点 App 包的入口、技术栈和界面文案，用 Computer Use 探索原版操作，用 REA 调查资源、格式与相关逻辑。
+4. 记录功能清单、测试场景和证据，区分推断与实测行为。
+5. 按原版技术栈选择以 AppKit 或 SwiftUI 为主独立实现，非原生原版用 SwiftUI + AppKit 实现，使用与原版隔离的配置和数据。
+6. 对原版与复刻版执行相同场景并对比界面截图，修正差异，清单校验通过后交付可运行的 `.app`、源码和验证记录。
 
 不可访问的账号或服务能力会记录为阻塞。功能覆盖以清单和验证证据为准。
 
@@ -77,6 +78,8 @@ rm -rf ~/.agents/skills/reverse-engineer-anything
 | [references/setup.md](references/setup.md) | 安装准备与连接核对 |
 | [references/workflow.md](references/workflow.md) | 功能记录、场景与验收 |
 | [scripts/bootstrap.py](scripts/bootstrap.py) | 检查环境、安装依赖并记录结果 |
-| [scripts/init_project.py](scripts/init_project.py) | 初始化复刻项目的清单与证据目录 |
+| [scripts/init_project.py](scripts/init_project.py) | 初始化复刻项目的清单、场景、进度记录与证据目录 |
+| [scripts/inspect_bundle.py](scripts/inspect_bundle.py) | 盘点 App 包的入口、技术栈、权限和界面文案 |
+| [scripts/ledger_check.py](scripts/ledger_check.py) | 校验功能清单、场景与证据，交付前检查覆盖 |
 | [agents/openai.yaml](agents/openai.yaml) | Agent 展示与调用配置 |
 | [assets/icon.svg](assets/icon.svg) | Skill 图标 |
