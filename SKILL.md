@@ -11,7 +11,7 @@ description: Prepare REA MCP and Build macOS Apps skills, then explore, independ
 
 读取 [references/setup.md](references/setup.md)。把本 Skill 的实际目录记作 `SKILL_DIR`，使用绝对路径运行脚本。安装 Skill 不会执行安装钩子；首次使用时执行本节，以后先检查并复用已就绪的依赖。
 
-1. 确认执行工具真正运行在用户的 Mac 上。浏览器中的 Linux 容器不能替用户安装本地 MCP。环境不符时，说明需在 Mac 的 Codex 会话使用本 Skill；继续完成不依赖本地环境的工作。
+1. 确认当前执行环境为目标 App 所在的本地 macOS。环境不符时，说明本地运行要求，继续完成不依赖本地环境的工作。
 2. 运行 `python3 "$SKILL_DIR/scripts/bootstrap.py" --check`，检查 macOS、Node.js、npm、git、Swift 工具链及安装记录。Python 尚不可用时先提示准备 Command Line Tools。不要把 Computer Use `unknown` 当成权限失败。
 3. 检查当前会话实际可调用的 REA 工具和官方 Build macOS Apps Skills。REA 已连接可用时添加 `--skip-rea`；仅在确认官方开发 Skills 全部可用时添加 `--skip-build-skills`。不要因同名泛用 Skill 存在就认为安装完成。
 4. 首次使用或明确的环境准备请求已经授权安装必要依赖。简短说明会配置 Codex 的 REA MCP、安装 REA 工作流和 11 个原生开发 Skills，然后运行 `python3 "$SKILL_DIR/scripts/bootstrap.py" --install`，按上一步添加跳过参数。脚本先生成限定安装计划，再使用官方 setup 应用；只配置 Codex，不扩展到其他客户端。不反复请求确认。
@@ -54,4 +54,4 @@ description: Prepare REA MCP and Build macOS Apps skills, then explore, independ
 
 发现差异后自主回到调查、实现和验证，不要求用户逐个决定正常功能是否需要。体验反馈加入清单、修正后重跑相关场景。
 
-交付可运行 `.app`、完整源码、构建启动方法、覆盖与验证结果、确实尚未解决的差异。各项状态和证据可检查后才报告完成，不隐藏阻塞。保留探索和修复记录供归纳人机协作流程。打包、公证、发布仅按用户要求执行。
+交付可运行 `.app`、完整源码、构建启动方法、覆盖与验证结果、确实尚未解决的差异。各项状态和证据可检查后才报告完成，不隐藏阻塞。打包、公证、发布仅按用户要求执行。

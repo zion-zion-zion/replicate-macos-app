@@ -10,9 +10,7 @@ npx skills add https://github.com/zion-zion-zion/replicate-macos-app --skill rep
 
 默认安装到当前项目。需要在 Codex 中跨项目使用时，添加 `--agent codex --global`；以 CLI 输出的路径作为本 Skill 的实际目录。Skills CLI 当前版本要求 Node.js >=22.20.0。
 
-本 Skill 面向运行在 Mac 上的 Codex。首次调用执行安装脚本；导入 Skill 本身没有可保证执行的安装钩子。也可将完整文件夹放入 `~/.agents/skills/replicate-macos-app`，或让 `$skill-installer` 从包含该目录的 Git 仓库安装。分享时包含 `SKILL.md`、`agents/`、`assets/`、`scripts/` 和 `references/`。
-
-在 ChatGPT Work 的 Skills 页面保存本 Skill，不代表用户 Mac 已安装 REA。本地安装结果必须在那台 Mac 上检查。
+本 Skill 面向本地 macOS 上的 Codex。首次使用时在本机运行安装脚本，之后检查并复用已有依赖：
 
 ```bash
 python3 /absolute/path/replicate-macos-app/scripts/bootstrap.py --check
@@ -25,7 +23,7 @@ python3 /absolute/path/replicate-macos-app/scripts/bootstrap.py --install
 
 安装脚本限定配置 Codex 的 REA MCP，并安装包内匹配版本的 `reverse-engineer-anything` 工作流。使用官方 setup 保留无关配置和备份，不覆盖整份 `config.toml`。固定 `rea-agents@6.1.0`；已连接可用的 REA 应跳过，避免替换或降级。升级时另行读取当前官方说明并核实版本。
 
-下载官方 `build-macos-apps` 的固定 Git revision，将完整插件内容及原有许可声明保存在本机专用依赖目录，再在 `~/.agents/skills` 创建指向 11 个 Skill 的链接。保留原始名称和参考资料。已有官方插件且全部 Skills 可用时跳过。该操作安装开发 Skills，不声称完整插件及三个 Commands 已注册。
+下载官方 `build-macos-apps` 的固定 Git revision，将完整插件内容及原有许可声明保存在本机专用依赖目录，再在 `~/.agents/skills` 创建指向 11 个 Skill 的链接。保留原始名称和参考资料。已有官方插件且全部 Skills 可用时跳过。
 
 | Skill | 使用场景 |
 | --- | --- |
@@ -68,12 +66,12 @@ doctor 检查注册和依赖，无法证明当前会话已加载 MCP。连接后
 
 若终端可运行 REA 而桌面客户端报 `npx` 或 `node` 找不到，检查该 MCP 的进程 PATH。只修复该 server 启动路径或 env，保留参数、版本和无关 MCP。重连验证，不重装整套依赖。
 
-## 核实依据
+## 上游资料
 
-2026-10-09 核实 npm 的 `rea-agents@6.1.0`、实际 setup CLI 与下列上游。main、npm 发行版和活动 server 可能不同，以已安装版本 schema 为准。
+调用 REA 时，以已安装版本和当前会话的工具 schema 为准。
 
 - REA 安装：https://github.com/morluto/rea/blob/main/docs/installation.md
 - setup 接口：https://github.com/morluto/rea/blob/main/src/cli/setupCommands.ts
 - 开发 Skills：https://github.com/openai/plugins/tree/0722921d5542fc593105c27bd52630babd8b8c2a/plugins/build-macos-apps
-- Skills 发现：https://learn.chatgpt.com/docs/build-skills
-- Computer Use 权限：https://learn.chatgpt.com/docs/computer-use
+- Codex Skills：https://developers.openai.com/codex/skills/
+- Skills CLI：https://github.com/vercel-labs/skills
