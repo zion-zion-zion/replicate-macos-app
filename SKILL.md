@@ -1,6 +1,6 @@
 ---
 name: replicate-macos-app
-description: Use when the user wants to replicate (复刻) or rebuild a closed-source macOS app as a standalone app with full source code, or wants only this skill's toolchain installed and checked. Requires the original app on the local Mac.
+description: Use in Codex when the user wants to replicate (复刻) or rebuild a closed-source macOS app as a standalone app with full source code, or wants only this skill's toolchain installed and checked. Requires Codex on the Mac where the original app is installed.
 ---
 
 # macOS 闭源 App 复刻
@@ -14,6 +14,13 @@ description: Use when the user wants to replicate (复刻) or rebuild a closed-s
 - 在没有安装 A 的 Mac 上独立运行。
 
 B 的源码是依据 A 的行为重新编写的实现，交付时这样向用户说明。
+
+## 运行环境
+
+本 Skill 目前只支持 Codex，并且要在 A 所在的 Mac 上运行。
+
+- 当前运行环境不是 Codex 时，告诉用户本 Skill 目前只支持 Codex，然后停止。
+- 确认操作 A 的工具运行在 A 所在的 Mac 上。在远程或 Linux 环境中只做资料整理、写代码和平台无关的测试，汇报时说明尚未观察 A、尚未完成 macOS 验收。
 
 ## 分工
 
@@ -47,15 +54,14 @@ B 的源码是依据 A 的行为重新编写的实现，交付时这样向用户
 
 1. 用户已给出的 App、版本和项目位置直接使用。不知道目标时，只问 App 名称或路径，并解析到本机唯一的 `.app`。
 2. 用户没指定项目位置时，用当前空目录或已有的复刻项目；两者都没有时，在当前目录下新建一个项目子目录。
-3. 确认操作 A 的工具运行在 A 所在的 Mac 上。在远程或 Linux 环境中只做资料整理、写代码和平台无关的测试，汇报时说明尚未观察 A、尚未完成 macOS 验收。
-4. 初始化项目：
+3. 初始化项目：
 
    ```bash
    python3 "$SKILL_DIR/scripts/init_project.py" PROJECT_DIR --app-path APP_PATH
    ```
 
    它在 `replica/` 下建立功能清单、场景、`progress.md` 和 `reference-manifest.json`，并编译 AX 工具 `replica/bin/ax`。不需要 AX 时加 `--skip-ax`；AX 编译失败只影响这一个工具。已有项目会保留原文件，继续工作前先读 `progress.md`、功能清单、场景和 `reference-manifest.json`。
-5. 在 `progress.md` 补充 A 需要的权限、能访问到的功能和外部依赖（服务端、硬件等）。用户还没选定 A 时，优先推荐能独立运行、核心状态可控的 App；已选定的 A 依赖服务端或硬件时，逐项调查并登记。
+4. 在 `progress.md` 补充 A 需要的权限、能访问到的功能和外部依赖（服务端、硬件等）。用户还没选定 A 时，优先推荐能独立运行、核心状态可控的 App；已选定的 A 依赖服务端或硬件时，逐项调查并登记。
 
 用户只要求准备工具时，按 setup.md 完成安装和连接核对，然后停止。
 

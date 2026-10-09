@@ -8,24 +8,26 @@
 
 ## 运行要求
 
-- 在原版 App 所在的 Mac 上使用 Codex。
+- 目前只支持 Codex，需要在原版 App 所在的 Mac 上使用。
 - 默认工具组：Build macOS Apps 插件、Computer Use 插件和 REA（逆向分析 MCP 与 Skill，固定 `rea-agents@6.1.0`）。首次使用时 Skill 会检查并按需安装，详见 [setup.md](references/setup.md)。也可以改用其他工具；缺少某一项时，不依赖它的工作照常进行。
 
 ## 安装
 
-通过 [Skills CLI](https://github.com/vercel-labs/skills) 安装：
+通过 [Skills CLI](https://github.com/vercel-labs/skills) 安装，用 `--agent codex` 指定 Codex。
+
+安装到当前项目：
 
 ```bash
-npx skills add https://github.com/zion-zion-zion/replicate-macos-app --skill replicate-macos-app
+npx skills add https://github.com/zion-zion-zion/replicate-macos-app --skill replicate-macos-app --agent codex
 ```
 
-在 Codex 中跨项目使用：
+跨项目使用（安装到 `~/.agents/skills/`）：
 
 ```bash
 npx skills add https://github.com/zion-zion-zion/replicate-macos-app --skill replicate-macos-app --agent codex --global
 ```
 
-安装命令只复制 Skill 的说明、脚本和参考资料，不安装任何依赖。
+安装命令只复制 Skill 的说明、脚本和参考资料，不安装任何依赖。`.agents/skills/` 目录也会被其他客户端读取；在 Codex 以外的环境中触发时，Skill 会说明目前只支持 Codex 并停止。
 
 ## 使用
 
@@ -100,7 +102,7 @@ rm -rf ~/.agents/skills/reverse-engineer-anything
 rm -rf ~/.local/share/replicate-macos-app
 ```
 
-移除 Skill：`npx skills remove replicate-macos-app`，全局安装时加 `--global`。复刻过程中另外安装的分析工具记录在各项目的 `progress.md` 中，需要时按记录单独卸载；多个程序共用的依赖保留。
+移除 Skill：`npx skills remove replicate-macos-app --agent codex`，全局安装时加 `--global`。复刻过程中另外安装的分析工具记录在各项目的 `progress.md` 中，需要时按记录单独卸载；多个程序共用的依赖保留。
 
 ## 文件
 
