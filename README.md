@@ -1,6 +1,6 @@
 # replicate-macos-app
 
-macOS App 全功能复刻 Skill。面向运行在用户 Mac 上的 Codex：用 Computer Use 和 REA MCP 探索闭源原版，用 Build macOS Apps 插件的 Skills 重建原生 App，并逐项对照验证。
+macOS App 全功能复刻 Skill。面向运行在用户 Mac 上的 Codex：读取闭源原版的包内容、AX 树和磁盘状态，配合 REA MCP 和 Computer Use 探索原版，用 Build macOS Apps 插件的 Skills 重建原生 App，并用可重放的场景逐项对照验证。
 
 ## 安装
 
@@ -18,7 +18,7 @@ npx skills add https://github.com/zion-zion-zion/replicate-macos-app --skill rep
 
 Skills CLI 当前版本要求 Node.js >=22.20.0。
 
-安装命令只复制 Skill 指令、脚本和参考资料。首次使用时，Skill 会在当前会话实际调用三个工具，缺什么就按 [安装准备说明](references/setup.md) 装什么：
+安装命令只复制 Skill 指令、脚本和参考资料。首次使用时，Skill 会在当前会话实际调用各工具，缺什么就按 [安装准备说明](references/setup.md) 装什么：
 
 | 依赖 | 安装方式 |
 | --- | --- |
@@ -26,7 +26,7 @@ Skills CLI 当前版本要求 Node.js >=22.20.0。
 | Computer Use 插件 | `codex plugin add computer-use@<marketplace>` |
 | REA MCP 与 REA Skill | 固定 `rea-agents@6.1.0`，先生成限定计划，再用官方 `rea setup --client codex` 应用 |
 
-这些都是用户级安装，对所有项目生效。用户需要亲自授予 Computer Use 屏幕录制和辅助功能权限，并在新安装后重启 Codex；开发工具、登录和许可证只在实际缺失时提示。
+这些都是用户级安装，对所有项目生效。用户需要亲自授予 Computer Use 屏幕录制和辅助功能权限、Codex 的辅助功能权限（`ax` 读取和操作界面），原版是沙盒 App 时还需要完全磁盘访问权限（`state_diff.py` 读取容器），并在新安装后重启 Codex；开发工具、登录和许可证只在实际缺失时提示。
 
 ## 使用
 
@@ -47,9 +47,9 @@ Skills CLI 当前版本要求 Node.js >=22.20.0。
 
 ## 工作流程
 
-1. 确定目标 App 和项目目录，初始化入口清单、功能清单、场景和进度记录；在当前会话确认三个工具可用，缺失时安装。
-2. 用 REA 登记 Info.plist 和 bundle 声明的入口，用 Computer Use 逐项登记菜单、设置、工具栏、右键菜单等界面入口。
-3. 逐个功能：用 Computer Use 观察原版，界面解释不了的部分用 REA 调查；按 Build macOS Apps 的 Skills 实现；对原版和复刻版执行同一场景并对比截图与输出。
+1. 确定目标 App 和项目目录，初始化入口清单、功能清单、场景和进度记录，编译 `ax`；在当前会话确认各工具可用，缺失时安装。
+2. 清点入口：扫描包内容（技术栈、声明的入口、文案、资源、数据模型、帮助文档），导出 AX 树登记菜单、工具栏、设置和右键菜单，Computer Use 补登 AX 树读不到的部分，再用文案和外部资料核对是否有遗漏。
+3. 逐个功能：用状态差分、AX 树、日志和 REA 观察原版，视觉和交互用 Computer Use；按 Build macOS Apps 的 Skills 实现；用脚本场景、截图场景和自动化测试对照两边。
 4. 清单校验通过后，交付可运行的 `.app`、源码和验证记录。
 
 账号、原厂服务端、硬件、付费许可、Apple 限定 entitlement 或用户排除的功能记录为阻塞，其余功能都需要实现并验证。
@@ -88,7 +88,10 @@ rm -rf ~/.local/share/replicate-macos-app
 | [references/setup.md](references/setup.md) | 安装准备与连接核对 |
 | [references/ledger.md](references/ledger.md) | 入口清单、功能、场景的格式与规则 |
 | [scripts/bootstrap.py](scripts/bootstrap.py) | 检查环境、安装缺失的依赖并记录结果 |
-| [scripts/init_project.py](scripts/init_project.py) | 初始化复刻项目的记录文件与证据目录 |
+| [scripts/init_project.py](scripts/init_project.py) | 初始化复刻项目的记录文件与证据目录，编译 `ax` |
+| [scripts/bundle_scan.py](scripts/bundle_scan.py) | 读取原版包内容：技术栈、声明的入口、文案、资源、数据模型、帮助文档 |
+| [scripts/ax.swift](scripts/ax.swift) | 导出运行中 App 的 AX 树，按元素路径执行动作 |
+| [scripts/state_diff.py](scripts/state_diff.py) | 偏好设置与数据目录的快照和差分 |
 | [scripts/ledger_check.py](scripts/ledger_check.py) | 校验记录，交付前检查覆盖 |
 | [agents/openai.yaml](agents/openai.yaml) | Agent 展示与调用配置 |
 | [assets/icon.svg](assets/icon.svg) | Skill 图标 |

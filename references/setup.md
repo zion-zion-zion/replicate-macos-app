@@ -12,7 +12,7 @@
 2. 运行 `python3 "$SKILL_DIR/scripts/bootstrap.py" --install`。Python 不可用时先提示安装 Command Line Tools（`xcode-select --install`）。脚本逐项处理，已就绪的项直接复用：
    - Build macOS Apps、Computer Use：从 `codex plugin list --json --available` 找到插件，未安装时运行 `codex plugin add <插件>@<marketplace> --json`。
    - REA：固定 `rea-agents@6.1.0`。doctor 报告 Codex 注册与 REA Skill 都已就绪时直接复用；否则先用 `rea setup --client codex --dry-run` 生成计划，核对计划只包含配置 Codex 和安装 REA Skill，再用 `--yes` 应用，最后用 doctor 复核。
-3. 核对输出中每一项的 `status`。部分失败时保留成功项，只修复失败项。
+3. 核对输出中每一项的 `status`。部分失败时保留成功项，只修复失败项。`accessibility` 为 `false` 时，`user_actions` 会列出辅助功能授权。
 4. 一次性列出 `user_actions` 中需要用户亲自完成的事项；已初始化项目时同时写进 `progress.md` 的「等待用户处理」，并写明下一步。有新安装项时需要重启 Codex，重启后回到 SKILL.md 第 1 节第 3 步重新确认。
 
 只读检查用 `--check`，它不写配置，首次运行会把 `rea-agents` 下载到 npm 缓存。
@@ -33,10 +33,12 @@
 | 检查项 | 实际缺失时的用户操作 |
 | --- | --- |
 | 系统权限 | 按提示在「系统设置 → 隐私与安全性」授予 Computer Use 屏幕录制和辅助功能权限 |
+| 辅助功能（`ax`） | `bootstrap.py` 报告 `accessibility: false`，或 `ax` 报告没有辅助功能权限时，在「系统设置 → 隐私与安全性 → 辅助功能」中允许 Codex；`ax.swift check` 会弹出系统授权提示 |
+| 沙盒原版的数据 | `state_diff.py` 报告无权读取容器时，给 Codex 授予「完全磁盘访问权限」，或在系统提示访问其他 App 的数据时允许 |
 | App 访问 | Codex 出现提示时允许访问本次目标 App |
 | Node.js 与 npm | 安装 Node.js 22.x >=22.19、24.x >=24.11 或稳定版 26+，确认 `node`、`npm`、`npx` 可执行 |
 | codex CLI | 安装 Codex CLI，或在 Codex 桌面版的 Plugins 中手动安装两个插件 |
-| Swift 工具链 | 安装 Command Line Tools；需要 Xcode 工程时安装完整 Xcode |
+| Swift 工具链 | 安装 Command Line Tools，用于编译 `bin/ax` 和复刻版；需要 Xcode 工程时安装完整 Xcode |
 | 新配置尚未加载 | 重启 Codex |
 | 原版 App | 安装并启动原版，需要登录或许可证时由用户完成 |
 

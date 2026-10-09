@@ -1,4 +1,5 @@
 import argparse
+import ctypes
 import datetime
 import json
 import os
@@ -64,6 +65,13 @@ def codex_cli():
     return path if path and Path(path).is_file() else None
 
 
+def accessibility_trusted():
+    # 检查的是运行本脚本的 App（如 Codex）是否有辅助功能权限，bin/ax 继承同一授权。
+    services = ctypes.CDLL("/System/Library/Frameworks/ApplicationServices.framework/ApplicationServices")
+    services.AXIsProcessTrusted.restype = ctypes.c_bool
+    return bool(services.AXIsProcessTrusted())
+
+
 def plugin_status(codex):
     listing = json.loads(run([codex, "plugin", "list", "--json", "--available"], timeout=NETWORK_TIMEOUT))
     report = {}
@@ -124,11 +132,11 @@ def check():
         "node_version": version, "node_supported": supported_node(version),
         "npm": npm, "npx": npx,
         "swift": probe(["xcrun", "--find", "swift"]) if mac else None,
+        "accessibility": accessibility_trusted() if mac else None,
         "codex_cli": codex,
         "plugins": plugin_status(codex) if codex else "unchecked: 找不到 codex CLI",
         "rea": inspect_rea() if mac and node_ready else "unchecked: 需要受支持的 Node.js 与 npm/npx",
-        "live_session": "unknown: 安装状态不代表当前会话已加载 Computer Use、REA 和插件 Skills",
-        "installation_record": installed,
+        "live_session": "unknown: 安装状态不代表当前会话已加载 Computer Use、REA 和插件 Skills",        "installation_record": installed,
     }
 
 
@@ -248,10 +256,13 @@ def install(args, readiness):
     if not readiness["swift"]:
         report["user_actions"].append("准备可用的 Swift 工具链；需要 Xcode 的工程再安装或选择完整 Xcode。")
     report["user_actions"].append("按系统提示授予 Computer Use 屏幕录制和辅助功能权限，并允许访问目标 App；已授予时复用。")
+    if not readiness["accessibility"]:
+        report["user_actions"].append("在「系统设置 → 隐私与安全性 → 辅助功能」中允许 Codex；"
+                                      "bin/ax 读取和操作原版界面需要这项权限。")
     changed = [item for item in (*report["plugins"].values(), report["rea"])
                if item.get("status") in ("installed", "configured")]
     if changed:
-        report["user_actions"].append("重启 Codex 加载新安装的插件和 MCP，随后在活动会话验证三个工具。")
+        report["user_actions"].append("重启 Codex 加载新安装的插件和 MCP，随后在活动会话验证各工具。")
     report["status"] = "partial" if report["errors"] else "dependencies_prepared"
     write_json(root / "installation.json", report)
     return report

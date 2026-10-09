@@ -1,19 +1,22 @@
 import argparse
 import json
+import os
 import re
 from collections import Counter
 from pathlib import Path
 
-SCHEMA_VERSION = 3
+SCHEMA_VERSION = 4
 ENTRY_KINDS = (
     "menu", "context_menu", "toolbar", "window", "settings", "shortcut", "document_type",
     "url_scheme", "service", "applescript", "app_intent", "drag_drop", "dock_menu",
     "menu_bar_extra", "extension", "notification", "lifecycle",
 )
-EVIDENCE_KINDS = ("gui", "file", "rea", "log", "user")
+EVIDENCE_KINDS = ("ax", "state", "gui", "file", "log", "bundle", "rea", "doc", "user")
+PATH_EVIDENCE = ("ax", "state", "bundle")
+RUNTIME_EVIDENCE = ("ax", "state", "gui", "file", "log", "user")
 FEATURE_STATUS = ("hypothesis", "observed", "implemented", "passed", "blocked")
 BLOCKER_KINDS = ("account", "server", "hardware", "license", "entitlement", "user")
-SCENARIO_KINDS = ("gui", "file", "automated")
+SCENARIO_KINDS = ("script", "gui", "automated")
 SCENARIO_STATUS = ("pending", "passed", "failed", "blocked")
 
 
@@ -41,7 +44,11 @@ class Checker:
                     or not nonempty_text(item.get("note"))):
                 self.errors.append(f"{owner}: 每条证据需要 kind（{'/'.join(EVIDENCE_KINDS)}）和 note")
                 continue
-            path = item.get("path")
+            path, kind = item.get("path"), item.get("kind")
+            if kind in PATH_EVIDENCE and path is None:
+                self.errors.append(f"{owner}: {kind} 证据需要 path 指向脚本输出")
+            if kind == "doc" and path is None and not re.match(r"https?://", str(item.get("url", ""))):
+                self.errors.append(f"{owner}: doc 证据需要 url 或 path")
             if path is None:
                 continue
             if not nonempty_text(path) or not (self.root / path).is_file():
@@ -92,8 +99,11 @@ class Checker:
             self.errors.append(f"{owner}: status 取值应为 {'/'.join(FEATURE_STATUS)}")
         self.evidence(owner, item.get("evidence"))
         if status in ("observed", "implemented", "passed"):
-            if not item.get("evidence"):
-                self.errors.append(f"{owner}: 状态为 {status} 时需要证据")
+            evidence = item.get("evidence") if isinstance(item.get("evidence"), list) else []
+            if not any(isinstance(entry, dict) and entry.get("kind") in RUNTIME_EVIDENCE
+                       for entry in evidence):
+                self.errors.append(f"{owner}: 状态为 {status} 时需要在运行的原版上取得的证据"
+                                   f"（{'/'.join(RUNTIME_EVIDENCE)}）")
             if not item.get("expected"):
                 self.errors.append(f"{owner}: 状态为 {status} 时需要写明 expected")
         if entry_count == 0:
@@ -132,9 +142,16 @@ class Checker:
             self.errors.append(f"{owner}: fixtures 必须是文本数组")
         if not text_list(item.get("differences")):
             self.errors.append(f"{owner}: differences 必须是文本数组")
-        screenshots = status == "passed" and kind == "gui"
-        self.side(f"{owner}.original", item.get("original"), screenshots)
-        self.side(f"{owner}.replica", item.get("replica"), screenshots)
+        script = item.get("script")
+        if kind == "script" or script is not None:
+            target = self.root / str(script)
+            if not nonempty_text(script) or not target.is_file():
+                self.errors.append(f"{owner}: script 场景需要存在的脚本文件 {script}")
+            elif not os.access(target, os.X_OK):
+                self.errors.append(f"{owner}: 脚本不可执行 {script}")
+        outputs = status == "passed" and kind in ("gui", "script")
+        self.side(f"{owner}.original", item.get("original"), outputs)
+        self.side(f"{owner}.replica", item.get("replica"), outputs)
         if status == "passed":
             if item.get("differences"):
                 self.errors.append(f"{owner}: 通过的场景不能有未解决的 differences")
