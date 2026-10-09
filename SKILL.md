@@ -1,71 +1,99 @@
 ---
 name: replicate-macos-app
-description: Replicate an installed closed-source macOS app as an independently written native app. Explore the original through its bundle, Accessibility tree, on-disk state, REA MCP and Computer Use, rebuild it with the Build macOS Apps plugin skills, and verify both apps side by side with replayable scenarios. Use for macOS App 复刻、全功能复刻、clone or rebuild of an existing Mac app, including setup-only requests that install these tools for this workflow. Requires local macOS.
+description: Build a complete, independently runnable reference implementation of a closed-source macOS app, with privately controlled source for later Computer Use recreation evaluation. Use for macOS App 复刻、全功能复刻、闭源软件重建、参考应用构造 and setup-only requests. Choose and combine any suitable investigation and implementation methods, including GUI/AX automation, REA, static or dynamic analysis, state and protocol inspection, custom tools and human evidence. Requires local macOS for original-app exploration and execution.
 ---
 
-# macOS App 复刻
+# macOS 闭源参考应用构造
 
-探索原版时，信息来源按成本从低到高使用：能读成结构化数据的直接读，视觉和交互留给 Computer Use。
+把闭源原版 **A** 尽可能完整地复现为拥有完整源码、可独立构建运行的参考 App **B**。本 Skill 负责 **A → B**；后续被测 Agent 通过 Computer Use 探索 B 并实现 C，属于独立评测流程。
 
-- **包内容**：`scripts/bundle_scan.py` 读取技术栈、Info.plist 声明的入口、entitlements、本地化文案、nib、资源目录、数据模型、内置数据库、帮助文档和更新源。
-- **AX 树**：`ax`（项目里的 `replica/bin/ax`，由 `scripts/ax.swift` 编译，不带参数运行显示用法）导出运行中 App 的菜单栏、菜单栏图标、窗口和右键菜单，每个元素带 role、标题、快捷键、勾选与启用状态和尺寸，也能按元素路径执行动作。
-- **状态差分**：`scripts/state_diff.py` 在操作前后给偏好设置、容器、Application Support、缓存和窗口恢复状态拍快照并比较。
-- **REA MCP**：需要读代码的问题：字符串和交叉引用、反编译、nib 内容、Electron 的 JS，以及用 `observe_native_calls` 记录运行时调用。调用方法按 `reverse-engineer-anything` Skill，以当前会话的工具列表为准。
-- **外部资料**：官网、帮助文档、App Store 描述、更新说明。
-- **Computer Use**：视觉布局、动效、拖放、AX 树读不到内容的自绘区域，以及 `gui` 场景的并排截图。调用方式以当前会话 Computer Use 插件的说明为准；用 bundle identifier 指定目标 App，两边同名时也不会操作错对象。
-- **Build macOS Apps** 插件的 Skills（`build-macos-apps:*`）负责建工程、实现、构建运行、调试和测试。
+构造 B 时不预设技术手段上限。按实际问题自由组合工具、直接调用 CLI/API、编写分析脚本、使用第三方依赖或拆分子任务；REA、Computer Use 和 Build macOS Apps 都是可用能力，不是唯一方案或必须全部通过的门槛。不要把 B → C 的纯 GUI 限制套到构造者身上。用户明确指定的当前操作限制仍然有效。
 
-复刻范围是原版的全部功能。用户提供目标 App、体验交付版本并指出差异；清点、调查、实现和验证由你自主完成，范围内的功能直接做。
+交付范围保持原版的全部正常功能。自主清点、调查、实现、验证和修正；用户提供目标、完成确需人工的授权、体验成品并指出差异。开发可以分步，不把最终目标改成 MVP，不逐项询问是否添加范围内功能。
 
-把本 Skill 的目录记作 `SKILL_DIR`，用绝对路径运行脚本。项目记录、证据和场景的格式见 [references/ledger.md](references/ledger.md)。
+把本 Skill 的目录记作 `SKILL_DIR`，用绝对路径运行脚本。按需读取：
 
-## 1. 开始
+- [references/setup.md](references/setup.md)：准备或修复本地工具。
+- [references/methods.md](references/methods.md)：选择调查、实验和实现方法；现有工具回答不了问题时扩展能力。
+- [references/ledger.md](references/ledger.md)：登记入口、行为、证据和回归场景。
+- [references/reference-app.md](references/reference-app.md)：独立运行、参考版本冻结、私有源码和评测隔离验收。
 
-1. 确定目标 App 和项目目录。目标未知时只询问 App 名称或路径，并解析为本机唯一的 `.app` 路径。用户未指定项目目录时，当前工作目录为空或已有 `replica/` 就直接使用，否则询问一次。项目根目录与 Codex 工作目录一致时，`build-run-debug` 生成的 Run 按钮才会生效。
-2. 运行 `python3 "$SKILL_DIR/scripts/init_project.py" PROJECT_DIR --app-path APP_PATH`，在 `replica/` 下创建功能清单、场景、进度文件和证据目录，并编译 `replica/bin/ax`；已有文件保持不变。项目已有记录时，先读 `replica/progress.md`、功能清单和场景，从记录的下一步继续。
-3. 在当前会话实际调用各工具：用 Computer Use 获取原版窗口状态，用 REA 打开原版 `.app`，启动原版后运行 `ax dump BUNDLE_ID --root MenuBar` 得到菜单项，确认技能列表中有 `build-macos-apps:build-run-debug`。都可用就进入第 2 节；有缺失时按 [references/setup.md](references/setup.md) 安装或授权，完成后回到这一步重新确认。
+## 1. 建立目标与工作区
 
-用户只要求安装准备时，跳过本节第 1、2 步，按 setup.md 安装，再完成第 3 步的确认（目标 App 未指定时，Computer Use 用任一已打开的 App 确认，辅助功能权限用 `swift "$SKILL_DIR/scripts/ax.swift" check` 确认），报告已就绪项和仍需用户操作的项后停止。
+1. 复用用户已经提供的 App、版本和项目位置。目标未知时只询问 App 名称或路径，解析为本机唯一的 `.app`。项目位置未指定时，优先使用当前空目录或已有复刻项目；否则在当前目录下建立独立项目子目录，不覆盖其他工程。
+2. 确认操作原版的工具实际运行在原版所在的 Mac。远程或 Linux 环境可以做资料整理、代码编辑和平台无关测试，但不能据此声称已观察原版或完成 macOS 验收。
+3. 运行 `python3 "$SKILL_DIR/scripts/init_project.py" PROJECT_DIR --app-path APP_PATH`，创建 `replica/` 中的记录和 `reference-manifest.json`。不使用 AX 时加 `--skip-ax`；AX 编译失败只影响该工具，不阻塞其余调查。旧项目文件保留，继续前先读 `progress.md`、功能清单、场景和参考实现清单。
+4. 记录 A 的版本、构建号、系统、权限、可访问功能及依赖。只在用户尚未选定原型时优先筛选独立运行、核心状态可控制的软件；已选目标的服务端或硬件依赖逐项调查，不能默默删除。
+5. 将具体 App 的源码、分析材料和测试证据放在独立私有工作区。公共 Skill 仓库只保存通用指令、工具和合成测试，不自动上传 A 或 B 的资源、二进制、源码和构造记录。
 
-## 2. 清点入口
+用户只要求安装准备时，按 setup.md 完成准备和真实连接核对后停止，不创建参考 App 或开始复刻。
 
-先求全，再求深：把原版的每一个入口登记进 `inventory`，再逐个功能深入。
+## 2. 按任务准备能力
 
-1. **包内容**：运行 `python3 "$SKILL_DIR/scripts/bundle_scan.py" PROJECT_DIR`，结果写入 `replica/evidence/bundle/`。
-   - `stack.tags` 含 `electron` 时，用 REA 的 `analyze_javascript_application` 分析输出中的 `electron_app`，菜单、窗口和功能逻辑以代码为准。
-   - 从 `entries` 登记文档类型、导入导出类型、URL scheme、系统服务、AppleScript 命令、App Intents、扩展、XPC 服务和登录项；`usage_descriptions` 指向需要系统权限的功能。
-2. **AX 树**：启动原版，运行 `ax dump BUNDLE_ID --out replica/evidence/ax/<状态>.json --flat replica/evidence/ax/<状态>.txt`。菜单栏、菜单栏图标（`ExtrasMenuBar`）、工具栏和窗口控件按输出逐行登记，`path` 用输出中的元素路径，带快捷键的项另登记一条 `shortcut`。再用 `ax perform` 打开每个设置面板和自定义工具栏面板；对各主要区域执行 `--action AXShowMenu` 打开右键菜单，菜单出现在该元素下的 `Menu`，导出后对它执行 `AXCancel` 关闭。每进入一个新状态，等界面稳定后导出一次。
-3. **Computer Use**：补登 AX 树读不到的入口：Dock 菜单、自绘区域里的控件、拖放目标、只能通过手势到达的界面。
-4. **文案与资料**：通读 `strings.json`、帮助页（`help_book.pages`）、官网、App Store 描述和更新说明（`update_feed`）。其中提到的每个功能、设置、对话框和错误提示，都要在清单中对应到入口或功能的 `expected` 分支；对应不上的，按文案回到原版找到入口后补登。文案表为空时（gettext 的 `.mo`、Qt 的 `.qm`、写在代码里的文案），用 REA 搜索字符串。
-5. 由系统提供、复刻版从框架默认获得的标准项（如「服务」子菜单、「隐藏其他」）登记为 `skip` 并写原因。
+先检查当前会话已有能力；需要缺失能力时按 setup.md 准备。对选用的工具做一次真实、范围明确的调用，分别记录“已安装”“会话可调用”“能处理目标”，不要把安装报告当成目标验证。
 
-完成标志：`python3 "$SKILL_DIR/scripts/ledger_check.py" PROJECT_DIR` 输出的 `entry_kinds.unchecked` 为空，文案与资料中提到的功能都能在清单中找到入口。
+默认可用工具包括包扫描、`ax`、状态差分、REA、Computer Use 和原生开发 Skills。也可使用其他反编译器、调试器、运行时插桩、网络与文件追踪、图像分析、格式解析器、自写脚本、其他开发栈或子 Agent。读取实际 schema 或当前官方文档，不假设具体 MCP 工具名存在。
 
-然后把入口归并为功能：同一操作的多个入口指向同一个功能 ID。
+只安装当前调查需要的能力。复用已有依赖和配置，记录新安装项；付费购买、账号访问、系统授权、破坏性系统修改及对外发布需要对应授权。“不限制方法”不等于自动获得这些权限。工具不可用时尝试可验证的替代方法，不因某个 provider 缺失而停止整个任务。
 
-## 3. 逐个功能：观察、重建、对照
+## 3. 建立并持续修订完整功能地图
 
-先做主流程（打开或新建、编辑、保存），再按菜单顺序推进。每个功能（或同一区域的一小组功能）走完下面三步，再进入下一个。
+先形成覆盖全局的入口与依赖清单，再围绕不确定项深入；不要求每个 App 采用相同工具顺序，也不要求在开始实现前穷尽所有逆向工作。
 
-1. **观察**：在原版上实测，使用测试文件和隔离目录，覆盖不同前置状态、禁用状态、错误提示和重启后的恢复。
-   - 操作前后各运行一次 `python3 "$SKILL_DIR/scripts/state_diff.py" snapshot PROJECT_DIR <名称> --path <隔离目录>`，再用 `state_diff.py diff PROJECT_DIR <前> <后>` 得到偏好 key 与默认值、写入的文件、plist 键值和数据库行数的变化。
-   - 操作后用 `ax dump BUNDLE_ID --root <窗口或面板路径>` 记录启用、勾选、文案和布局。
-   - 运行日志用 `log stream --predicate 'process == "<identity.executable>"'` 观察。
-   - 文件格式、算法、默认值和隐藏设置从具体问题出发交给 REA；静态分析回答不了的调用顺序用 `observe_native_calls`。
-   - 视觉细节、动效和拖放用 Computer Use 观察并截图。
+- 用 `bundle_scan.py PROJECT_DIR` 或其他适合技术栈的方法，检查包结构、声明入口、文案、资源、数据模型、Helper、XPC、扩展和依赖。扫描失败或无输出不等于没有功能。
+- 能读取 AX 时，用 `replica/bin/ax dump BUNDLE_ID` 清点菜单、窗口、设置、快捷键和状态；也可使用 AppleScript、App 的公开接口或其他自动化工具。用实际画面与交互检查布局、自绘控件、拖放、动效和其他结构化接口无法表达的行为。
+- 检查帮助文档、官网和版本说明，将声称存在的功能登记为待验证候选。静态资源、代码与文档提供线索；运行中的行为和实验结果决定规格。
+- 按 ledger.md 登记各入口类别。菜单之外还检查文件关联、URL scheme、系统服务、通知、权限拒绝、撤销重做、多窗口、首次启动、退出和重启恢复。遇到新入口、新状态和隐藏分支时持续补充。
+- 多个入口可指向同一功能，影响行为的每个设置都要登记。标准系统项可以注明由框架提供，但仍检查其实际行为；不能用 `skip` 排除有业务逻辑的正常功能。
 
-   写下 `expected` 和证据，状态改为 `observed`。
-2. **重建**：按 Build macOS Apps 的 Skills 实现。第一次实现前，用 `swiftpm-macos`（或沿用已有 Xcode 工程）建立工程，用 `build-run-debug` 建立 `script/build_and_run.sh` 和 Run 按钮。界面以 SwiftUI 场景为主，参照 `swiftui-patterns` 和 `window-management`；SwiftUI 达不到原版行为的部分（如复杂表格、文本编辑、菜单项校验）按 `appkit-interop` 用 AppKit 实现。运行日志用 `telemetry`，测试失败用 `test-triage`，沙盒和权限用 `signing-entitlements`。用户指定技术栈时按用户要求。复刻版使用独立的 bundle identifier、配置和数据目录，用自己编写的代码实现观察到的行为。功能完整连通后状态改为 `implemented`。
-3. **对照**：为功能写场景。能由 `ax perform`、AppleScript 和命令行驱动的写成 `script` 场景，对原版和复刻版各运行一次，比较两边输出的 AX 树、文件和状态差分；视觉布局、动效和拖放写成 `gui` 场景，用 Computer Use 对两边执行同一组步骤并截图；文件格式、算法和持久化另写 `automated` 测试。场景通过后功能状态改为 `passed`；有差异就写进场景的 `differences`，回到观察或重建。
+`ledger_check.py PROJECT_DIR` 的入口类别统计用于发现漏项，不是“已经发现所有功能”的证明。不存在的类别必须写依据，不能为通过检查而批量填入无依据的说明。
 
-规则：
+## 4. 围绕行为问题选择方法、执行实验
 
-- 连通到真实逻辑才算 `implemented`；未连通的按钮、静态假数据和占位实现保持原状态。
-- `blocked` 只用于这些原因：账号、原厂服务端、硬件、付费许可、Apple 限定的 entitlement、用户明确排除。阻塞的功能保留条目，继续其他功能。
-- 需要用户处理的事项（Computer Use 拿不到画面、脚本报告缺少辅助功能或完全磁盘访问权限）写进 `progress.md` 的等待用户处理，继续不依赖该项的工作；Computer Use 不可用时 `gui` 场景保持 `pending`。
-- 每轮观察后把结论写进功能清单，只保留作为证据的输出。切换阶段、完成功能或需要用户操作时更新 `progress.md`。
-- 遵守用户给出的操作方式限制。修改原版设置前用 `state_diff.py` 拍快照记下原值，用完恢复。
+每次调查写清：当前未知行为、候选解释、要区分它们的输入或前置状态、采用的方法、实际输出和结论。优先做能减少关键不确定性的实验；低成本方法无效就更换方法，不机械重复 GUI 或全量反编译。
 
-## 4. 交付
+按 methods.md 自由组合静态分析、动态调用观察、断点、文件与数据库差分、网络协议分析、批量输入测试和人工证据。必要时编写新工具；对会改变目标行为的插桩、重签名或补丁，明确记录修改，并在未修改原版上复核外部行为。
 
-`python3 "$SKILL_DIR/scripts/ledger_check.py" PROJECT_DIR --final` 没有错误后才报告完成。交付可运行的 `.app`、源码、构建启动命令、清单统计（入口数、功能数、通过数、阻塞项及原因）和尚未解决的差异。用户体验后指出的差异加入清单，修正后重跑相关场景。打包、公证和发布按用户要求执行。
+使用测试账号、合成文件和隔离目录。修改原版设置前保存原值或快照，测试后恢复。不要把分析中读到的凭据、个人数据或专有资源自动加入交付物。
+
+对已有脚本的常见调用：
+
+```bash
+python3 "$SKILL_DIR/scripts/bundle_scan.py" PROJECT_DIR
+python3 "$SKILL_DIR/scripts/state_diff.py" snapshot PROJECT_DIR before --path TEST_DIR
+# 在原版执行待调查操作
+python3 "$SKILL_DIR/scripts/state_diff.py" snapshot PROJECT_DIR after --path TEST_DIR
+python3 "$SKILL_DIR/scripts/state_diff.py" diff PROJECT_DIR before after
+```
+
+把每条有效结论关联到功能 ID 和证据。新增工具不需要新增固定工具白名单；使用 `static` 或 `runtime` 等证据类型记录工具、参数、目标版本和输出。只有静态推断时保持 `hypothesis`，不得标成已观察。
+
+## 5. 实现完整、独立的 B
+
+依据已验证行为选择最适合的架构。原生界面通常可用 SwiftUI + AppKit；复杂编辑器、跨平台原型或已有可靠实现有其他合适技术栈时直接采用，不强制用 Swift 重写所有内容，也不要求内部结构与 A 一致。
+
+使用 Build macOS Apps 时，读取当前可用的 `build-run-debug`、`swiftpm-macos`、`appkit-interop`、`window-management` 等相关 Skills。采用其他技术栈时建立等价的工程、构建、启动、日志和测试入口。保留原版交互习惯，不擅自改成新的视觉风格。
+
+允许使用系统框架、开源库、CLI 工具和其他可合法使用的组件，记录来源、版本、许可及修改；从原版提取的资源默认仅作分析证据，纳入可分发 B 前确认使用依据。B 的核心行为必须由交付源码及声明依赖实现，不能调用 A、嵌入 A 的专有核心二进制或通过截图回放代替真实功能。
+
+使用独立 bundle identifier、配置与数据目录。建立可重复构建和启动命令，确认每次运行的是本次构建的 B。实现真实状态转换、文件读写、错误处理、持久化、撤销和恢复；按钮未连通、固定假数据或针对测试输出硬编码都不能算完成。
+
+服务端依赖可以通过公开协议或可控制的自建后端实现，但必须提供真实状态与行为并记录 A/B 差异；仅返回固定响应不等于复现完整服务。确实无法实现的账号、原厂服务、硬件、许可证或 entitlement 保留为阻塞，不隐藏、不改写为成功。
+
+## 6. 对照、回归与独立性验收
+
+对 A 和 B 使用同一组输入与起始状态，比较界面、快捷键、状态转换、输出文件、错误行为、持久化和重启恢复。可结合脚本、GUI 和自动化测试；实现过程中反复调查和修正，直到可访问功能完成验证。细节见 ledger.md。
+
+先保留失败复现，再修复并重跑受影响场景。对子 Agent 的产出执行同样验收，不能直接相信其完成声明。用户反馈进入同一清单并触发回归。
+
+按 reference-app.md 另外验证 B：从交付源码构建；在没有 A、原版私有数据和构造工具的干净 macOS 环境中运行；能加载测试数据、重置初始状态并重放场景。不要为此删除用户正在使用的 A，可使用独立测试机、虚拟机或受控测试环境。未执行的检查保持待验证。
+
+交付前运行 `python3 "$SKILL_DIR/scripts/ledger_check.py" PROJECT_DIR --final`。通过只说明清单约束满足，不证明实际全功能等价或独立运行；有阻塞项就明确报告为带阻塞交付，不能声称全部功能完成。
+
+## 7. 冻结参考实现并交付
+
+在 `reference-manifest.json` 记录 B 的源码位置与版本、构建启动和重置命令、依赖、测试输入、构造方法、A/B 保真度与独立性证据、剩余差异。验收后固定参考版本并记录源码修订和二进制摘要；后续修改产生新参考版本。
+
+交付可运行的 `.app`、完整源码、构建启动方法、测试与重置说明、功能覆盖统计、真实阻塞与差异。源码对 B 是真实实现，对 A 是行为替代实现；不声称恢复了 A 的原始源码。
+
+为后续 B → C 保持隔离：B 源码、构造会话、逆向材料、完整规格和隐藏测试由构造者私有保管，评测只暴露协议允许的运行界面。隔离需要独立环境和访问控制，不能仅靠提示词或 `.gitignore`。不自动启动第二层评测，不自动发布参考源码；打包、公证和发布按用户要求执行。

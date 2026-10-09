@@ -11,9 +11,10 @@ ENTRY_KINDS = (
     "url_scheme", "service", "applescript", "app_intent", "drag_drop", "dock_menu",
     "menu_bar_extra", "extension", "notification", "lifecycle",
 )
-EVIDENCE_KINDS = ("ax", "state", "gui", "file", "log", "bundle", "rea", "doc", "user")
-PATH_EVIDENCE = ("ax", "state", "bundle")
-RUNTIME_EVIDENCE = ("ax", "state", "gui", "file", "log", "user")
+EVIDENCE_KINDS = ("ax", "state", "gui", "file", "log", "bundle", "rea", "doc", "user",
+                  "static", "runtime")
+PATH_EVIDENCE = ("ax", "state", "bundle", "static", "runtime")
+RUNTIME_EVIDENCE = ("ax", "state", "gui", "file", "log", "user", "runtime")
 FEATURE_STATUS = ("hypothesis", "observed", "implemented", "passed", "blocked")
 BLOCKER_KINDS = ("account", "server", "hardware", "license", "entitlement", "user")
 SCENARIO_KINDS = ("script", "gui", "automated")
@@ -46,7 +47,7 @@ class Checker:
                 continue
             path, kind = item.get("path"), item.get("kind")
             if kind in PATH_EVIDENCE and path is None:
-                self.errors.append(f"{owner}: {kind} 证据需要 path 指向脚本输出")
+                self.errors.append(f"{owner}: {kind} 证据需要 path 指向实际输出")
             if kind == "doc" and path is None and not re.match(r"https?://", str(item.get("url", ""))):
                 self.errors.append(f"{owner}: doc 证据需要 url 或 path")
             if path is None:
@@ -235,6 +236,10 @@ def check(root, final):
     unchecked = [kind for kind in ENTRY_KINDS if kind not in covered and kind not in absent]
 
     if final:
+        if not features:
+            checker.errors.append("交付前需要非空的功能清单，不能用空记录通过验收")
+        if not scenarios:
+            checker.errors.append("交付前需要非空的验证场景，不能用空记录通过验收")
         for item in features:
             if item.get("status") not in ("passed", "blocked"):
                 checker.errors.append(f"{item.get('id')}: 交付前需要 passed 或 blocked")
