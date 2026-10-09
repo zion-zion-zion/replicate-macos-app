@@ -2,14 +2,6 @@
 
 ## 运行方式
 
-通过 Skills CLI 从 GitHub 安装本 Skill：
-
-```bash
-npx skills add https://github.com/zion-zion-zion/replicate-macos-app --skill replicate-macos-app
-```
-
-默认安装到当前项目。需要在 Codex 中跨项目使用时，添加 `--agent codex --global`；以 CLI 输出的路径作为本 Skill 的实际目录。Skills CLI 当前版本要求 Node.js >=22.20.0。
-
 本 Skill 面向本地 macOS 上的 Codex。首次使用时在本机运行安装脚本，之后检查并复用已有依赖：
 
 ```bash
@@ -74,4 +66,3 @@ doctor 检查注册和依赖，无法证明当前会话已加载 MCP。连接后
 - setup 接口：https://github.com/morluto/rea/blob/main/src/cli/setupCommands.ts
 - 开发 Skills：https://github.com/openai/plugins/tree/0722921d5542fc593105c27bd52630babd8b8c2a/plugins/build-macos-apps
 - Codex Skills：https://developers.openai.com/codex/skills/
-- Skills CLI：https://github.com/vercel-labs/skills
