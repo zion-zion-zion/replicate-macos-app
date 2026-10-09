@@ -1,6 +1,6 @@
 ---
 name: replicate-macos-app
-description: Prepare REA MCP and Build macOS Apps skills, then explore, independently implement, and validate the complete functionality of a closed-source macOS app with Codex Computer Use. Use for macOS App 复刻、全功能复刻、组合工具安装准备、REA + Computer Use + Build macOS Apps workflows. Support setup-only requests. Require local macOS execution for installation and desktop exploration.
+description: Replicate the complete functionality of a closed-source macOS app as an independently written native app. Explore the original with Codex Computer Use, investigate its bundle and behavior with REA MCP, then implement and validate the replica. Use for macOS App 复刻、全功能复刻、复刻闭源 Mac 应用, including setup-only requests that prepare REA and Build macOS Apps skills for this workflow. Do not use for building a new macOS app without a reference app, reverse-engineering analysis that does not produce a replica, iOS/iPadOS or web apps, or installing REA alone. Requires local macOS.
 ---
 
 # macOS App 全功能复刻
@@ -11,14 +11,16 @@ description: Prepare REA MCP and Build macOS Apps skills, then explore, independ
 
 读取 [references/setup.md](references/setup.md)。把本 Skill 的实际目录记作 `SKILL_DIR`，使用绝对路径运行脚本。安装 Skill 不会执行安装钩子；首次使用时执行本节，以后先检查并复用已就绪的依赖。
 
+REA 的安装、诊断和修复按本节与 setup.md 执行，使用固定的 `rea-agents@6.1.0`。`reverse-engineer-anything` Skill 中基于 `rea-agents@latest` 的 doctor、setup 步骤及其安装确认规则不用于本任务，安装授权以第 4 步为准。
+
 1. 确认当前执行环境为目标 App 所在的本地 macOS。环境不符时，说明本地运行要求，继续完成不依赖本地环境的工作。
-2. 运行 `python3 "$SKILL_DIR/scripts/bootstrap.py" --check`，检查 macOS、Node.js、npm、git、Swift 工具链及安装记录。Python 尚不可用时先提示准备 Command Line Tools。不要把 Computer Use `unknown` 当成权限失败。
+2. 运行 `python3 "$SKILL_DIR/scripts/bootstrap.py" --check`，检查 macOS、Node.js、npm、git、Swift 工具链、安装记录，以及 REA doctor 报告的 Codex 注册和 REA Skill 状态。Python 尚不可用时先提示准备 Command Line Tools。不要把 Computer Use `unknown` 当成权限失败。
 3. 检查当前会话实际可调用的 REA 工具和官方 Build macOS Apps Skills。REA 已连接可用时添加 `--skip-rea`；仅在确认官方开发 Skills 全部可用时添加 `--skip-build-skills`。不要因同名泛用 Skill 存在就认为安装完成。
-4. 首次使用或明确的环境准备请求已经授权安装必要依赖。简短说明会配置 Codex 的 REA MCP、安装 REA 工作流和 11 个原生开发 Skills，然后运行 `python3 "$SKILL_DIR/scripts/bootstrap.py" --install`，按上一步添加跳过参数。脚本先生成限定安装计划，再使用官方 setup 应用；只配置 Codex，不扩展到其他客户端。不反复请求确认。
-5. 核对每项结果。部分失败时复用成功项，仅修复失败项。不要覆盖用户现有 Skill、删除其他 MCP、自动降级已可用的 REA，或把 setup 成功当成会话已经连接。
+4. 用户在提示中显式调用 `$replicate-macos-app`，或明确要求准备环境时，视为已授权安装必要依赖，不反复请求确认。本 Skill 因描述匹配被隐式启用时，先简短说明将配置 Codex 的 REA MCP、安装 REA 工作流和 11 个原生开发 Skills（用户级安装，对所有项目生效），取得同意后再安装。安装时运行 `python3 "$SKILL_DIR/scripts/bootstrap.py" --install`，按上一步添加跳过参数。脚本先生成限定安装计划，再使用官方 setup 应用；只配置 Codex，不扩展到其他客户端。
+5. 核对每项结果。部分失败时复用成功项，仅修复失败项。Codex 已注册更新版本或无法确定版本的 REA 时，脚本保留该注册并报告 REA 失败：当前会话 REA 工具可用时加 `--skip-rea` 重跑；不可用时向用户说明现有注册并询问处理方式，不要自行删除或改写。不要覆盖用户现有 Skill、删除其他 MCP，或把 setup 成功当成会话已经连接。
 6. 一次性列出需用户亲自执行的缺失项：开启 Computer Use 的 server 和 skill 开关；授予系统提示的屏幕录制和辅助功能权限；允许访问目标 App；如新配置尚未加载则重连或重启 Codex。开发工具、登录、许可证只在实际缺失时提示。不要求所有应用权限，不修改 macOS 权限数据库。
 7. 调用当前会话真实的 REA 只读工具，并用 Computer Use 获取指定 App 的初始画面。实际输入权限在第一项已授权、可撤销的目标操作中验证。区分“配置已写入”“工具已连接”“App 可操作”。
-8. 仅在调查需要原生深度分析且现有 provider 不可用时处理 Hopper/Ghidra。已有 provider 先做针对它的 doctor。安装 Hopper 须有用户明确选择，再加 `--with-hopper`，不要购买许可证。不要把 Hopper Demo 或 doctor 通过当成所有反编译能力均可用。
+8. 仅在调查需要原生深度分析且现有 provider 不可用时处理 Hopper/Ghidra。已有 provider 先做针对它的 doctor。安装 Hopper 须有用户明确选择，再加 `--with-hopper`，不要购买许可证。装完后需要用户打开一次 Hopper，选择 Demo 模式或激活许可证；脚本把这一步列入 `user_actions`。不要把 Hopper Demo 或 doctor 通过当成所有反编译能力均可用。
 
 用户只要求安装准备时，报告已安装项和仍需用户操作的项后停止，不启动复刻。
 
@@ -32,7 +34,7 @@ description: Prepare REA MCP and Build macOS Apps skills, then explore, independ
 
 先做轻量 App bundle 检查，确认类型、资源和版本。随后用 Computer Use 系统探索窗口、菜单、设置、右键、快捷键、拖拽、导入导出、状态恢复与异常输入，形成初始功能清单。
 
-针对未理解的行为或可能遗漏的入口调用 REA，调查相关资源、处理逻辑、格式与持久化。读取当前工具的真实 schema；不假设仓库 main 的新工具存在于安装版本，不请求无目标的全量反编译。
+针对未理解的行为或可能遗漏的入口调用 REA，调查相关资源、处理逻辑、格式与持久化。调查方法按 `reverse-engineer-anything` Skill 执行，包括按目标类型选择首个工具、先读摘要结果，以及其中 Plan broader investigations 的分阶段调查。以当前会话工具的真实 schema 为准，不请求无目标的全量反编译。本 Skill 负责把调查结论写入功能清单和场景，方法见 workflow.md。
 
 将新发现转成 GUI 验证任务，再用 Computer Use 确认分支、边界和重启行为。持续交替两种工具，直至各入口已检查、候选功能已处理、行为有证据。不要用一次遍历来宣称绝对全量覆盖。
 

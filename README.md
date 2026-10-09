@@ -18,7 +18,7 @@ npx skills add https://github.com/zion-zion-zion/replicate-macos-app --skill rep
 
 Skills CLI 当前版本要求 Node.js >=22.20.0。安装结果会显示 Skill 的实际路径。
 
-安装命令会复制 Skill 指令、脚本和参考资料；REA MCP 与开发依赖在首次使用时按 [安装准备说明](references/setup.md) 配置。
+安装命令会复制 Skill 指令、脚本和参考资料；REA MCP 与开发依赖在首次使用时按 [安装准备说明](references/setup.md) 配置。这些依赖是用户级安装，对所有项目生效，具体内容和撤销方法见[卸载](#卸载)。
 
 ## 使用
 
@@ -35,6 +35,8 @@ Skills CLI 当前版本要求 Node.js >=22.20.0。安装结果会显示 Skill �
 使用 $replicate-macos-app，只完成安装准备并核实连接。
 ```
 
+提示中显式写出 `$replicate-macos-app` 即授权首次安装依赖；Codex 根据描述自动启用本 Skill 时，会先说明要安装的内容并征得同意。
+
 完整使用需要本地 macOS、可用的开发工具和目标 App。用户按实际提示开启 Computer Use，并授予屏幕录制、辅助功能及目标 App 访问权限；必要的登录和许可证由用户完成。
 
 ## 工作流程
@@ -46,6 +48,26 @@ Skills CLI 当前版本要求 Node.js >=22.20.0。安装结果会显示 Skill �
 5. 对原版与复刻版执行相同场景，修正差异后交付可运行的 `.app`、源码和验证记录。
 
 不可访问的账号或服务能力会记录为阻塞。功能覆盖以清单和验证证据为准。
+
+## 卸载
+
+首次使用会在本机做以下用户级改动，可以分别撤销。
+
+原生开发 Skills：`~/.agents/skills` 下的 11 个 `build-macos-apps--*` 链接，插件副本和安装记录在 `~/.local/share/replicate-macos-app`。
+
+```bash
+find ~/.agents/skills -maxdepth 1 -type l -name 'build-macos-apps--*' -delete
+rm -rf ~/.local/share/replicate-macos-app
+```
+
+REA：Codex `config.toml` 中名为 `rea` 的 MCP 注册，以及 `~/.agents/skills/reverse-engineer-anything`。其他场景也不再使用 REA 时执行：
+
+```bash
+codex mcp remove rea
+rm -rf ~/.agents/skills/reverse-engineer-anything
+```
+
+本 Skill：执行 `npx skills remove replicate-macos-app`，全局安装时加 `--global`。
 
 ## 文件
 

@@ -9,13 +9,17 @@ python3 /absolute/path/replicate-macos-app/scripts/bootstrap.py --check
 python3 /absolute/path/replicate-macos-app/scripts/bootstrap.py --install
 ```
 
+`--check` 不写配置，会运行固定版本的 `rea doctor --client codex --skill`，报告 Codex 中已有的 REA 注册命令、版本和 REA Skill 状态；首次运行会把 `rea-agents` 下载到 npm 缓存。
+
 支持 `--skip-rea`、`--skip-build-skills`。仅在当前会话实际验证相应依赖后跳过。`--with-hopper` 只在用户明确选择安装 Hopper 时添加。
 
 ## 自动完成的内容
 
-安装脚本限定配置 Codex 的 REA MCP，并安装包内匹配版本的 `reverse-engineer-anything` 工作流。使用官方 setup 保留无关配置和备份，不覆盖整份 `config.toml`。固定 `rea-agents@6.1.0`；已连接可用的 REA 应跳过，避免替换或降级。升级时另行读取当前官方说明并核实版本。
+安装脚本限定配置 Codex 的 REA MCP，并安装包内匹配版本的 `reverse-engineer-anything` 工作流。使用官方 setup 保留无关配置和备份，不覆盖整份 `config.toml`。固定 `rea-agents@6.1.0`。执行 setup 前读取 doctor 报告的 Codex 注册：已注册更新版本，或注册命令中无法确定版本（如 `@latest`、本地路径）时，不执行 setup 并保留现有注册；已注册旧版本时更新为 6.1.0。升级时另行读取当前官方说明并核实版本。
 
-下载官方 `build-macos-apps` 的固定 Git revision，将完整插件内容及原有许可声明保存在本机专用依赖目录，再在 `~/.agents/skills` 创建指向 11 个 Skill 的链接。保留原始名称和参考资料。已有官方插件且全部 Skills 可用时跳过。
+使用 `--with-hopper` 时，REA 在 macOS 上装完 Hopper 后固定返回 `needs_human`，要求用户打开一次 Hopper 选择 Demo 模式或激活许可证。脚本以 doctor 结果判断 Codex 注册和 REA Skill 是否就绪，并把 Hopper 这一步列入 `user_actions`。
+
+下载官方 `build-macos-apps` 的固定 Git revision，将完整插件内容及原有许可声明保存在 `~/.local/share/replicate-macos-app`，再在 `~/.agents/skills` 创建指向 11 个 Skill 的链接。这些链接是用户级安装，对所有项目生效。保留原始名称和参考资料。已有官方插件且全部 Skills 可用时跳过。
 
 | Skill | 使用场景 |
 | --- | --- |
