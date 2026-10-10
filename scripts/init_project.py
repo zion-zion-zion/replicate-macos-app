@@ -8,14 +8,14 @@ from pathlib import Path
 
 SCHEMA_VERSION = 4
 AX_SOURCE = Path(__file__).resolve().parent / "ax.swift"
-PROGRESS = """# 参考应用构造进度
+PROGRESS = """# 复刻进度
 
 ## 目标
 
 - 原版 A：{name} {version}（{build}），{bundle_id}
 - 路径：{path}
 - macOS：{macos_version}（{macos_build}）
-- 交付：独立可运行、拥有完整源码的参考 App B
+- 交付：拥有完整源码、可独立运行的复刻版 B
 
 ## 当前阶段
 
@@ -24,7 +24,7 @@ PROGRESS = """# 参考应用构造进度
 ## 下一步
 
 - 读取已有记录，按目标选择调查方法并验证所需工具。
-- 建立全功能清单；在 reference-manifest.json 记录构造与验收。
+- 建立全功能清单；在 reference-manifest.json 记录 B 的构建与验收。
 
 ## 构建与启动
 
@@ -79,8 +79,9 @@ def reference_manifest(identity):
         },
         "construction": {"methods": [], "components": []},
         "verification": {
-            name: {"status": "pending", "evidence": [], "notes": []}
-            for name in ("fidelity", "independence", "reset")
+            **{name: {"status": "pending", "evidence": [], "notes": []}
+               for name in ("fidelity", "independence", "reset")},
+            "known_differences": [],
         },
         "freeze": {
             "reference_version": None, "frozen_at": None,
@@ -108,7 +109,6 @@ def initialize(project_dir, app, skip_ax=False):
     for name in ("evidence", "scenarios"):
         (root / name).mkdir(parents=True, exist_ok=True)
     manifest = reference_manifest(identity)
-    manifest["verification"]["known_differences"] = []
     items = {
         ".gitignore": "bin/\n",
         "feature-ledger.json": json.dumps(
@@ -143,7 +143,7 @@ def initialize(project_dir, app, skip_ax=False):
 
 
 def main(argv=None):
-    parser = argparse.ArgumentParser(description="初始化参考应用构造记录，不覆盖已有记录。")
+    parser = argparse.ArgumentParser(description="初始化复刻项目记录，已有记录保持不变。")
     parser.add_argument("project_dir", type=Path)
     parser.add_argument("--app-path", required=True, type=Path)
     parser.add_argument("--skip-ax", action="store_true", help="跳过可选 AX 工具的编译")

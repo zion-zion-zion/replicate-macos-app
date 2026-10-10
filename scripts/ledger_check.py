@@ -169,6 +169,9 @@ def load(path, checker):
         checker.errors.append(f"缺少 {path}")
         return None
     data = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(data, dict):
+        checker.errors.append(f"{path.name}: 顶层必须是 JSON 对象")
+        return None
     if data.get("schema_version") != SCHEMA_VERSION:
         checker.errors.append(f"{path.name}: schema_version 应为 {SCHEMA_VERSION}")
     return data
