@@ -19,7 +19,7 @@
 
 - **原生 App**：按需检查 Mach-O、Objective-C/Swift 元数据、链接库、nib/storyboard、资源、Helper 和 XPC。REA 的反编译需要 Hopper、Ghidra 或 IDA 作为 provider，`binary_session` 列出当前可用的 provider 和工具；也可以直接使用合适的反编译器和调试器。Swift（尤其是 SwiftUI）的反编译结果难读，围绕具体问题逐个函数查看。`observe_native_calls` 会真正启动 A，带 hardened runtime 的 A 需要 `get-task-allow`，按下文「插桩和修改副本」在副本上处理。
 - **Electron App**：REA 是读代码的主要工具。以 SKILL.md 第 3 步 `analyze_javascript_application` 的结果为代码地图，调查单个功能时用 `trace_application_feature`，从界面文案、IPC 通道、模块或 API 追到实现。
-- **WebView、Qt 等其他跨平台 App**：检查实际的包结构、资源、脚本、模块和事件注册，使用该技术栈适用的解析和运行时工具。从 Electron 和这类 App 提取出的代码只作分析材料：功能仍要在 A 上验证，放进 B 前要确认有再分发依据。
+- **WebView、Qt 等其他跨平台 App**：检查实际的包结构、资源、脚本、模块和事件注册，使用该技术栈适用的解析和运行时工具。从 Electron 和这类 App 提取出的代码只作分析材料，功能仍要在 A 上验证；其中识别出的开源依赖按包名和版本从上游获取，A 自身的代码不进入 B。
 - **文件、音视频、图像和开发工具类 App**：先识别格式、算法和现成可用的组件，用小规模的输入输出实验确认兼容性。成熟的基础组件直接复用公开库和系统能力，固定依赖版本并保存许可信息。
 
 ## 扩展能力

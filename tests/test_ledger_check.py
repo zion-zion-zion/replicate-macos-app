@@ -31,6 +31,7 @@ DUMP_LINES = [
     "Window[合成] > Button\tsubrole=AXCloseButton",
     "Window[合成] > ScrollArea > Table > Row#1 > Cell > TextField\tvalue=合成",
 ]
+STATES = [{"id": "ST-001", "name": "主窗口", "reach": "启动 A", "dumps": [DUMP]}]
 
 
 def write_dump(path, lines, bundle_id=ORIGINAL["bundle_id"], version="1.0", build="1"):
@@ -89,22 +90,22 @@ class LedgerTestCase(unittest.TestCase):
                           "launch_command": "open", "reset_command": "make reset"},
             "verification": {"fidelity": {"status": "passed", "evidence": ["evidence/observation.txt"]},
                              "independence": {"status": "pending", "evidence": []},
-                             "reset": {"status": "pending", "evidence": []}},
+                             "reset": {"status": "passed", "evidence": ["evidence/observation.txt"]}},
             "freeze": {"reference_version": "1.0", "frozen_at": "2026-01-01T00:00:00Z",
                        "source_revision": "abc123", "artifact": artifact.name,
                        "artifact_sha256": hashlib.sha256(artifact.read_bytes()).hexdigest()},
         }
 
     def write(self, features, scenarios, inventory=INVENTORY, absent=None, clues=CLUES,
-              manifest=None, **extra):
+              manifest=None, states=STATES, **extra):
         if absent is None:
             covered = {item["kind"] for item in inventory if "feature" in item}
             absent = {kind: "合成记录：不适用" for kind in ledger_check.ENTRY_KINDS if kind not in covered}
-        ledger = {"schema_version": 5, "app": ORIGINAL, "inventory": inventory, "clues": clues,
-                  "features": features, "absent_entry_kinds": absent, **extra}
+        ledger = {"schema_version": 6, "app": ORIGINAL, "inventory": inventory, "clues": clues,
+                  "states": states, "features": features, "absent_entry_kinds": absent, **extra}
         (self.root / "feature-ledger.json").write_text(json.dumps(ledger), encoding="utf-8")
         (self.root / "scenarios.json").write_text(
-            json.dumps({"schema_version": 5, "scenarios": scenarios}), encoding="utf-8")
+            json.dumps({"schema_version": 6, "scenarios": scenarios}), encoding="utf-8")
         (self.root / "reference-manifest.json").write_text(
             json.dumps(self.manifest if manifest is None else manifest), encoding="utf-8")
 
@@ -215,6 +216,8 @@ class RecordTests(LedgerTestCase):
             ("通过场景仍有差异", {"differences": ["页边距不同"]}, "不能有未解决的 differences"),
             ("通过场景缺少原版结果", {"original": side(result=None)}, "需要记录 original.result"),
             ("gui 通过场景缺少证据文件", {"replica": side(evidence=[])}, "S-001.replica: 需要至少一个存在的证据文件"),
+            ("automated 通过场景缺少 B 的证据文件", {"kind": "automated", "replica": side(evidence=[])},
+             "S-001.replica: 需要至少一个存在的证据文件"),
             ("A 的结果只有静态线索", {"original": side(evidence=[evidence("static")])}, "静态线索不能作为 A 的结果"),
             ("fixture 不存在", {"fixtures": ["evidence/fixtures/missing.db"]}, "fixture 不存在"),
             ("script 场景缺少脚本", {"kind": "script", "script": "scenarios/missing.sh"}, "需要存在的脚本文件"),
@@ -227,6 +230,11 @@ class RecordTests(LedgerTestCase):
             with self.subTest(name):
                 errors, _ = self.check(scenarios=[scenario(**changes)])
                 self.assertError(errors, fragment)
+
+    def test_automated_scenario_needs_no_original_file(self):
+        original = side(evidence=[{"kind": "user", "note": "用户提供的 A 的输出"}])
+        errors, _ = self.check(scenarios=[scenario(kind="automated", original=original)])
+        self.assertEqual(errors, [])
 
     def test_feature_rules(self):
         cases = [
@@ -284,10 +292,10 @@ class RecordTests(LedgerTestCase):
 
         self.write([feature()], [scenario()])
         ledger = json.loads((self.root / "feature-ledger.json").read_text(encoding="utf-8"))
-        ledger["schema_version"] = 4
+        ledger["schema_version"] = 5
         (self.root / "feature-ledger.json").write_text(json.dumps(ledger), encoding="utf-8")
         checker, _ = ledger_check.check(self.root, True)
-        self.assertError(checker.errors, "feature-ledger.json: schema_version 应为 5")
+        self.assertError(checker.errors, "feature-ledger.json: schema_version 应为 6")
 
         (self.root / "scenarios.json").unlink()
         checker, _ = ledger_check.check(self.root, True)
@@ -313,19 +321,24 @@ class ScriptRunTests(LedgerTestCase):
         self.item = scenario(kind="script", script="scenarios/S-001.sh")
 
     def write_run(self, name, side_name, **changes):
-        run = {"scenario": "S-001", "side": side_name,
-               "bundle_id": ORIGINAL["bundle_id"] if side_name == "original" else REPLICA_ID,
+        run = {"scenario": "S-001", "side": side_name, "bundle_id": ORIGINAL["bundle_id"], "app_sha256": None,
                "script": "scenarios/S-001.sh", "exit_code": 0,
-               "script_sha256": hashlib.sha256(self.script.read_bytes()).hexdigest(), **changes}
+               "script_sha256": hashlib.sha256(self.script.read_bytes()).hexdigest()}
+        if side_name == "replica":
+            run.update(bundle_id=REPLICA_ID,
+                       app_sha256=ledger_check.tree_sha256(self.project / f"{REPLICA_NAME}.app"),
+                       compare={"original_run": "evidence/runs/a/run.json", "identical": ["out.txt"],
+                                "different": [], "only_original": [], "only_replica": []})
+        run.update(changes)
         path = self.root / "evidence" / "runs" / name / "run.json"
         path.parent.mkdir(parents=True)
         path.write_text(json.dumps(run), encoding="utf-8")
         return str(path.relative_to(self.root))
 
-    def with_runs(self, original, replica):
+    def with_runs(self, original, replica, **changes):
         return scenario(kind="script", script="scenarios/S-001.sh",
                         original=side(evidence=[evidence(), evidence("run", original)]),
-                        replica=side(evidence=[evidence("run", replica)]))
+                        replica=side(evidence=[evidence("run", replica)]), **changes)
 
     def test_script_must_be_executable(self):
         errors, _ = self.check(scenarios=[self.item])
@@ -339,6 +352,38 @@ class ScriptRunTests(LedgerTestCase):
         item = self.with_runs(self.write_run("a", "original"), self.write_run("b", "replica"))
         errors, _ = self.check(scenarios=[item])
         self.assertEqual(errors, [])
+
+    def test_final_requires_replica_run_on_current_build(self):
+        os.chmod(self.script, 0o755)
+        item = self.with_runs(self.write_run("a", "original"), self.write_run("b", "replica", app_sha256="0" * 64))
+        errors, _ = self.check(scenarios=[item], final=False)
+        self.assertEqual(errors, [])
+        errors, _ = self.check(scenarios=[item])
+        self.assertError(errors, "S-001.replica: 通过的 script 场景需要当前脚本在 replica 一侧成功运行")
+        self.assertError(errors, "当前的 reference.artifact_path 构建")
+        self.assertNoError(errors, "S-001.original")
+
+    def test_replica_run_needs_compare(self):
+        os.chmod(self.script, 0o755)
+        item = self.with_runs(self.write_run("a", "original"), self.write_run("b", "replica", compare=None))
+        errors, _ = self.check(scenarios=[item], final=False)
+        self.assertError(errors, "S-001.replica: 通过的 script 场景需要当前脚本在 replica 一侧成功运行")
+        self.assertError(errors, "B 一侧的 run 需要带 compare")
+
+    def test_compare_differences_need_normalization(self):
+        os.chmod(self.script, 0o755)
+        compare = {"original_run": "evidence/runs/a/run.json", "identical": [], "different": ["export.pdf"],
+                   "only_original": [], "only_replica": ["debug.log"]}
+        original = self.write_run("a", "original")
+        replica = self.write_run("b", "replica", compare=compare)
+        errors, _ = self.check(scenarios=[self.with_runs(original, replica)])
+        self.assertError(errors, "S-001: compare 中 export.pdf 两侧内容不同")
+        self.assertError(errors, "S-001: compare 中 debug.log 只在 B 一侧出现")
+        rules = {"export.pdf": "比较页数和文字内容，忽略创建时间", "debug.log": "B 的调试日志，不属于 A 的行为"}
+        errors, _ = self.check(scenarios=[self.with_runs(original, replica, normalization=rules)])
+        self.assertEqual(errors, [])
+        errors, _ = self.check(scenarios=[self.with_runs(original, replica, normalization=["export.pdf"])])
+        self.assertError(errors, "S-001: normalization 需要是「输出文件: 比较规则」的对象")
 
     def test_run_records_must_match(self):
         os.chmod(self.script, 0o755)
@@ -364,7 +409,7 @@ class AXCoverageTests(LedgerTestCase):
         errors, summary = self.check()
         self.assertEqual(errors, [])
         self.assertEqual(summary["ax"], {"dumps": [DUMP], "interactive": 1, "covered": 1, "uncovered": 0,
-                                         "uncovered_entries": []})
+                                         "uncovered_entries": [], "wildcards": {}})
 
     def test_unregistered_element_blocks_final(self):
         self.add_lines("Window[合成] > Toolbar > Button[刷新]")
@@ -383,6 +428,35 @@ class AXCoverageTests(LedgerTestCase):
         self.assertEqual(errors, [])
         self.assertEqual(summary["ax"]["uncovered"], 0)
 
+    def test_wildcard_label_matches_dynamic_segments(self):
+        self.assertTrue(ledger_check.segment_matches("Window[*]", "Window[a.txt]#2"))
+        self.assertFalse(ledger_check.segment_matches("Window[*]", "Window#2"))
+        self.assertFalse(ledger_check.segment_matches("Window[*]", "WindowGroup[a.txt]"))
+        bold = "Toolbar > Button[粗体]"
+        self.add_lines(f"Window[a.txt] > {bold}", f"Window[a.txt]#2 > {bold}", f"Window[b.txt] > {bold}",
+                       f"Window > {bold}")
+        pattern = f"Window[*] > {bold}"
+        inventory = [*INVENTORY, {"kind": "toolbar", "path": pattern, "feature": "F-001"}]
+        errors, summary = self.check(inventory=inventory, final=False)
+        self.assertEqual(errors, [])
+        self.assertEqual(summary["ax"]["wildcards"], {pattern: 3})
+        self.assertEqual(summary["ax"]["uncovered_entries"], [{"kind": "toolbar", "path": f"Window > {bold}"}])
+
+    def test_wildcard_skip_covers_children(self):
+        recent = "MenuBar > MenuBarItem[合成] > MenuItem[最近打开]"
+        self.add_lines(recent, f"{recent} > MenuItem[a.txt]", f"{recent} > MenuItem[a.txt] > MenuItem[详情]")
+        inventory = [*INVENTORY, {"kind": "menu", "path": recent, "feature": "F-001"},
+                     {"kind": "menu", "path": f"{recent} > MenuItem[*]", "skip": "最近文件列表，由打开功能覆盖"}]
+        errors, summary = self.check(inventory=inventory)
+        self.assertEqual(errors, [])
+        self.assertEqual(summary["ax"]["uncovered"], 0)
+
+    def test_wildcard_must_match_a_dump(self):
+        pattern = "Window[*] > Button[不存在]"
+        inventory = [*INVENTORY, {"kind": "window", "path": pattern, "feature": "F-001"}]
+        errors, _ = self.check(inventory=inventory)
+        self.assertError(errors, f"inventory[1]: AX 路径不在原版 A 的任何 AX 导出中 {pattern}")
+
     def test_inventory_paths_come_from_original_dumps(self):
         typo = "MenuBar > MenuBarItem[合成] > MenuItem[运行 合成]"
         write_dump(self.root / "evidence/ax/replica/main.txt", [typo], bundle_id=REPLICA_ID)
@@ -399,11 +473,13 @@ class AXCoverageTests(LedgerTestCase):
     def test_final_requires_dump_or_reason(self):
         (self.root / DUMP).unlink()
         features = [feature(evidence=[evidence()])]
-        errors, _ = self.check(features)
+        states = [{**STATES[0], "dumps": []}]
+        errors, _ = self.check(features, states=states)
         self.assertError(errors, "交付前需要原版 A 的 AX 导出")
-        errors, _ = self.check(features, ax_unavailable="A 使用自绘界面，AX 只能读到窗口")
+        self.assertError(errors, "ST-001: 交付前每个状态需要至少一份 A 的 AX 导出")
+        errors, _ = self.check(features, states=states, ax_unavailable="A 使用自绘界面，AX 只能读到窗口")
         self.assertEqual(errors, [])
-        errors, _ = self.check(features, ax_unavailable="")
+        errors, _ = self.check(features, states=states, ax_unavailable="")
         self.assertError(errors, "ax_unavailable: 需要写明")
 
     def test_cli_lists_uncovered_on_request(self):
@@ -415,6 +491,42 @@ class AXCoverageTests(LedgerTestCase):
         self.assertEqual((ax["uncovered"], len(ax["uncovered_entries"])), (25, ledger_check.UNCOVERED_SAMPLE))
         proc = run_script("ledger_check.py", self.project, "--uncovered")
         self.assertEqual(len(json.loads(proc.stdout)["ax"]["uncovered_entries"]), 25)
+
+
+class StateTests(LedgerTestCase):
+    def test_final_requires_states(self):
+        errors, summary = self.check(states=[], final=False)
+        self.assertEqual(errors, [])
+        self.assertEqual(summary["states"], {"total": 0, "with_dump": 0})
+        errors, _ = self.check(states=[])
+        self.assertError(errors, "交付前需要在 states 列出 A 的各个界面状态")
+
+    def test_state_without_dump_blocks_final_only(self):
+        states = [*STATES, {"id": "ST-002", "name": "设置 > 通用", "reach": "合成 > 设置…", "dumps": []}]
+        errors, summary = self.check(states=states, final=False)
+        self.assertEqual(errors, [])
+        self.assertEqual(summary["states"], {"total": 2, "with_dump": 1})
+        errors, _ = self.check(states=states)
+        self.assertError(errors, "ST-002: 交付前每个状态需要至少一份 A 的 AX 导出")
+
+    def test_state_rules(self):
+        write_dump(self.root / "evidence/ax/replica/main.txt", DUMP_LINES, bundle_id=REPLICA_ID)
+        write_dump(self.root / "evidence/ax/original/old.txt", DUMP_LINES, version="0.9")
+        base = STATES[0]
+        cases = [
+            ("id 格式错误", {"id": "state-1"}, "id 格式应为 ST-001"),
+            ("缺少到达方式", {"reach": " "}, "状态需要 name 和 reach"),
+            ("dumps 不是数组", {"dumps": DUMP}, "dumps 必须是 AX 导出的路径数组"),
+            ("dumps 不是 AX 导出", {"dumps": ["evidence/observation.txt"]}, "dumps 需要 ax dump 的逐行输出"),
+            ("dumps 来自 B", {"dumps": ["evidence/ax/replica/main.txt"]}, "不是功能清单记录的原版 A 的 AX 导出"),
+            ("dumps 来自 A 的其他版本", {"dumps": ["evidence/ax/original/old.txt"]}, "不是功能清单记录的原版 A 的 AX 导出"),
+        ]
+        for name, changes, fragment in cases:
+            with self.subTest(name):
+                errors, _ = self.check(states=[{**base, **changes}], final=False)
+                self.assertError(errors, fragment)
+        errors, _ = self.check(states=[base, copy.deepcopy(base)], final=False)
+        self.assertError(errors, "states: ID 重复 ST-001")
 
 
 class ClueTests(LedgerTestCase):
@@ -480,6 +592,10 @@ class ManifestTests(LedgerTestCase):
              "verification.reset: passed 需要证据"),
             ("状态不合法", self.changed("verification", reset={"status": "done", "evidence": []}),
              "verification.reset: status 取值"),
+            ("fidelity 未通过", self.changed("verification", fidelity={"status": "pending", "evidence": []}),
+             "verification.fidelity: 交付前需要 passed"),
+            ("reset 未通过", self.changed("verification", reset={"status": "failed", "evidence": []}),
+             "verification.reset: 交付前需要 passed"),
             ("schema 版本过旧", {**self.manifest, "schema_version": 1}, "reference-manifest.json: schema_version 应为 2"),
         ]
         for name, manifest, fragment in cases:

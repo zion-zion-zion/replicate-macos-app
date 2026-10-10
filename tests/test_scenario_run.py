@@ -1,11 +1,13 @@
 import hashlib
 import json
 import os
+import shutil
 import tempfile
 import unittest
 from pathlib import Path
 
 from support import make_app, run_script
+from scenario_run import tree_sha256
 import ledger_check
 
 ORIGINAL_ID = "org.example.original"
@@ -51,7 +53,8 @@ class ScenarioRunTests(unittest.TestCase):
     def test_runs_both_sides_and_compares_outputs(self):
         proc, report = self.run_scenario()
         self.assertEqual(proc.returncode, 0, proc.stderr)
-        self.assertEqual(report["compare"], {"identical": ["same.txt"], "different": ["bundle.txt"],
+        self.assertEqual(report["compare"], {"original_run": report["runs"]["original"]["evidence"]["path"],
+                                             "identical": ["same.txt"], "different": ["bundle.txt"],
                                              "only_original": ["only-a.txt"], "only_replica": []})
         for side, bundle_id, app in (("original", ORIGINAL_ID, self.original),
                                      ("replica", REPLICA_ID, self.replica)):
@@ -73,9 +76,53 @@ class ScenarioRunTests(unittest.TestCase):
                 self.assertEqual((run_path.parent / "bundle.txt").read_text(encoding="utf-8"), f"{bundle_id}\n")
                 value = {"evidence": [{**entry["evidence"], "note": "运行记录"}]}
                 checker = ledger_check.Checker(self.root, ORIGINAL_ID, REPLICA_ID)
+                checker.replica_tree = tree_sha256(self.replica)
                 checker.evidence(f"S-001.{side}", value["evidence"], True, side, "S-001")
                 checker.runs(f"S-001.{side}", value, side, run["script_sha256"])
                 self.assertEqual(checker.errors, [])
+        original_run = json.loads((self.root / report["runs"]["original"]["evidence"]["path"]).read_text(encoding="utf-8"))
+        replica_run = json.loads((self.root / report["runs"]["replica"]["evidence"]["path"]).read_text(encoding="utf-8"))
+        self.assertIsNone(original_run["app_sha256"])
+        self.assertEqual(replica_run["app_sha256"], tree_sha256(self.replica))
+        self.assertEqual(replica_run["compare"], report["compare"])
+
+    def read_run(self, report, side):
+        return json.loads((self.root / report["runs"][side]["evidence"]["path"]).read_text(encoding="utf-8"))
+
+    def test_replica_only_run_compares_with_latest_original(self):
+        _, first = self.run_scenario()
+        proc, report = self.run_scenario("--side", "replica")
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        self.assertEqual(list(report["runs"]), ["replica"])
+        self.assertEqual(report["compare"]["original_run"], first["runs"]["original"]["evidence"]["path"])
+        self.assertEqual(report["compare"]["only_original"], ["only-a.txt"])
+        self.assertEqual(self.read_run(report, "replica")["compare"], report["compare"])
+
+    def test_replica_only_run_skips_stale_original(self):
+        self.run_scenario()
+        self.write_script(SCRIPT + "echo changed\n")
+        proc, report = self.run_scenario("--side", "replica")
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        self.assertNotIn("compare", report)
+        self.assertNotIn("compare", self.read_run(report, "replica"))
+
+    def test_failed_original_is_not_recorded_as_comparison(self):
+        self.write_script('#!/bin/sh\n[ "$REPLICA_SIDE" = original ] && exit 3\nexit 0\n')
+        proc, report = self.run_scenario()
+        self.assertEqual(proc.returncode, 1)
+        self.assertIn("compare", report)
+        self.assertNotIn("compare", self.read_run(report, "replica"))
+
+    def test_tree_hash_tracks_app_content(self):
+        (self.replica / "Contents" / "Resources").mkdir()
+        (self.replica / "Contents" / "Resources" / "data.txt").write_text("一\n", encoding="utf-8")
+        os.symlink("Resources/data.txt", self.replica / "Contents" / "link.txt")
+        before = tree_sha256(self.replica)
+        copy = self.project / "copy" / self.replica.name
+        shutil.copytree(self.replica, copy, symlinks=True)
+        self.assertEqual(tree_sha256(copy), before)
+        (copy / "Contents" / "Resources" / "data.txt").write_text("二\n", encoding="utf-8")
+        self.assertNotEqual(tree_sha256(copy), before)
 
     def test_failed_side_exits_nonzero(self):
         self.write_script('#!/bin/sh\n[ "$REPLICA_SIDE" = replica ] && exit 3\nexit 0\n')

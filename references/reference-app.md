@@ -13,7 +13,7 @@
 | `created_at` | 文件生成时间（UTC） |
 | `reference` | B 的名称（`init_project.py` 预填）、bundle identifier、源码目录与修订、B 的 `.app`（`artifact_path`）、构建/启动/重置命令、fixtures 和依赖 |
 | `construction.methods` | 实际使用的方法、工具版本、用途和证据位置 |
-| `construction.components` | 使用的第三方组件或资源：来源、版本、使用依据和修改情况 |
+| `construction.components` | 使用的第三方组件或资源：来源、版本、使用依据和修改情况；开源组件的来源写上游地址 |
 | `verification.fidelity` | B 与 A 行为对照的验收状态和证据 |
 | `verification.independence` | 在没有 A 和 A 私有数据的环境中，B 独立构建运行的验收状态和证据 |
 | `verification.reset` | 重置状态后重放场景的验收状态和证据 |
@@ -43,7 +43,7 @@
 冻结就是把验收通过的 B 固定成一个版本：
 
 1. 记录源码修订，例如 git commit。
-2. 把 B 的 `.app` 打成归档，例如 `ditto -c -k --keepParent B.app B-1.0.zip`。`freeze.artifact` 填归档路径，`freeze.artifact_sha256` 填它的 SHA-256。
+2. 把 `reference.artifact_path` 指向的 `.app`，也就是最后一轮场景运行所用的构建，打成归档，例如 `ditto -c -k --keepParent B.app B-1.0.zip`。`freeze.artifact` 填归档路径，`freeze.artifact_sha256` 填它的 SHA-256。
 3. 填写 `freeze` 中的版本号和冻结时间。
 
 每个版本对应一次具体的构建。修复 B 之后产生新版本，重新归档，并重跑相关验收。
@@ -55,4 +55,5 @@
 - `reference` 的 `name`、`bundle_id`、`artifact_path`、`build_command`、`launch_command`、`reset_command` 都已填写，`bundle_id` 与 A 不同。
 - `artifact_path` 指向的 `.app` 的 `CFBundleIdentifier` 等于 `reference.bundle_id`；`.app` 文件名、`CFBundleName`，以及存在时的 `CFBundleDisplayName`，都等于 `reference.name`。
 - `freeze` 的各项都已填写，`artifact` 是存在的文件，SHA-256 与 `artifact_sha256` 一致。
-- 三项验收的状态合法，标为 `passed` 的项至少有一个存在的证据文件。
+- 每个通过的 `script` 场景，B 一侧有一条对当前 `artifact_path` 构建成功运行的 `run` 证据（`run.json` 的 `app_sha256` 等于这个 `.app` 的内容哈希）。
+- 三项验收的状态合法，标为 `passed` 的项至少有一个存在的证据文件；`fidelity` 和 `reset` 为 `passed`，`independence` 可以保持 `pending`，交付时向用户说明。

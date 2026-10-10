@@ -6,7 +6,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-SCHEMA_VERSION = 5
+SCHEMA_VERSION = 6
 MANIFEST_SCHEMA_VERSION = 2
 AX_SOURCE = Path(__file__).resolve().parent / "ax.swift"
 PROGRESS = """# 复刻进度
@@ -16,6 +16,7 @@ PROGRESS = """# 复刻进度
 - 原版 A：{name} {version}（{build}），{bundle_id}
 - 路径：{path}
 - macOS：{macos_version}（{macos_build}）
+- 界面语言：调查时使用的系统语言，开始调查前填写；B 只支持这一种语言
 - 复刻版 B：{replica_name}，拥有完整源码、可独立运行
 
 ## 当前阶段
@@ -115,7 +116,7 @@ def initialize(project_dir, app, skip_ax=False):
         ".gitignore": "bin/\n",
         "feature-ledger.json": json.dumps(
             {"schema_version": SCHEMA_VERSION, "app": identity, "macos": macos,
-             "inventory": [], "clues": [], "absent_entry_kinds": {}, "features": []},
+             "inventory": [], "clues": [], "states": [], "absent_entry_kinds": {}, "features": []},
             ensure_ascii=False, indent=2) + "\n",
         "scenarios.json": json.dumps(
             {"schema_version": SCHEMA_VERSION, "scenarios": []}, indent=2) + "\n",

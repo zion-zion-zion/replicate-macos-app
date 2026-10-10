@@ -13,6 +13,8 @@ description: Use in Codex when the user wants to replicate (复刻) or rebuild a
 - 拥有完整源码，可以从源码重新构建。
 - 在没有安装 A 的 Mac 上独立运行。
 
+界面语言以调查时的系统语言为准，记在 `progress.md`；B 只支持这一种语言，A 的其他本地化不在范围内。
+
 B 的源码是依据 A 的行为重新编写的实现，交付时这样向用户说明。
 
 B 默认命名为 `<A 的名称>-replicate`，A 的名称依次取 A 的 `CFBundleDisplayName`、`CFBundleName`、`.app` 文件名。例如 A 是 SQLiteFlow，B 就叫 SQLiteFlow-replicate。
@@ -38,7 +40,7 @@ B 默认命名为 `<A 的名称>-replicate`，A 的名称依次取 A 的 `CFBund
 | --- | --- |
 | [references/setup.md](references/setup.md) | 安装或修复默认工具组 |
 | [references/methods.md](references/methods.md) | 为具体问题挑选调查方法，或现有工具不够用 |
-| [references/ledger.md](references/ledger.md) | 填写入口、静态线索、功能、证据和对照场景，解读 `ledger_check.py` 的输出 |
+| [references/ledger.md](references/ledger.md) | 填写入口、界面状态、静态线索、功能、证据和对照场景，解读 `ledger_check.py` 的输出 |
 | [references/reference-app.md](references/reference-app.md) | 填写 `reference-manifest.json`、验收 B 的独立运行、冻结版本 |
 
 ## 授权与数据
@@ -59,11 +61,13 @@ B 默认命名为 `<A 的名称>-replicate`，A 的名称依次取 A 的 `CFBund
 
 ## 流程
 
+用户只要求准备工具时，不建立复刻项目，按 setup.md 完成安装和连接核对，然后停止。
+
 每一步的结果当时写进 `replica/` 的记录，随后运行 `python3 "$SKILL_DIR/scripts/ledger_check.py" PROJECT_DIR`，按输出的错误修正记录。
 
 ### 1. 确定目标和项目
 
-1. 用户已给出的 App、版本和项目位置直接使用。不知道目标时，只问 App 名称或路径，并解析到本机唯一的 `.app`。
+1. 用户已给出的 App、版本和项目位置直接使用。不知道目标时，只问 App 名称或路径，并解析到本机唯一的 `.app`；用户请你推荐时，优先推荐能独立运行、核心状态可控的 App。
 2. 用户没指定项目位置时，用当前空目录或已有的复刻项目；两者都没有时，在当前目录下新建以 B 的名称命名的子目录。
 3. 初始化项目：
 
@@ -72,9 +76,7 @@ B 默认命名为 `<A 的名称>-replicate`，A 的名称依次取 A 的 `CFBund
    ```
 
    它在 `replica/` 下建立功能清单、场景、`progress.md` 和 `reference-manifest.json`（`reference.name` 预填为 B 的名称），并编译 AX 工具 `replica/bin/ax`。不需要 AX 时加 `--skip-ax`；AX 编译失败只影响这一个工具。已有项目会保留原文件，继续工作前先读 `progress.md`、功能清单、场景和 `reference-manifest.json`。
-4. 在 `progress.md` 补充 A 需要的权限、能访问到的功能和外部依赖（服务端、硬件等）。用户还没选定 A 时，优先推荐能独立运行、核心状态可控的 App；已选定的 A 依赖服务端或硬件时，逐项调查并登记。
-
-用户只要求准备工具时，按 setup.md 完成安装和连接核对，然后停止。
+4. 在 `progress.md` 补充 A 需要的权限、能访问到的功能和外部依赖（服务端、硬件等）。A 依赖服务端或硬件时，逐项调查并登记。
 
 ### 2. 准备工具
 
@@ -89,13 +91,13 @@ B 默认命名为 `<A 的名称>-replicate`，A 的名称依次取 A 的 `CFBund
 - **静态扫描**：`python3 "$SKILL_DIR/scripts/bundle_scan.py" PROJECT_DIR` 列出包结构、声明的入口、文案、资源、数据模型、Helper、XPC、扩展和依赖，结果写入 `evidence/bundle/`。扫描失败或某类结果为空时，用其他方法继续找。
 - **静态线索**：`bundle.json` 里的 nib/storyboard、内嵌框架、XPC、扩展、Helper、插件、App Intent、样例数据库和数据模型，逐条登记到功能清单的 `clues`，各自指向功能或写明 `skip` 原因（格式见 ledger.md）。`strings.json` 通读一遍，把描述功能的文案对应到入口。
 - **JS 代码分析**：扫描输出的 `electron_app` 有路径时，A 是 Electron App，业务代码以 JS 形式随包发布。用 REA 的 `analyze_javascript_application` 分析这个路径，得到的模块、IPC 通道、窗口配置和 preload 用来补全入口，也作为第 4 步追踪功能的代码地图。
-- **AX 清点**：启动 A，在每个能到达的状态下导出完整的 AX 树：主窗口、打开文档后、每个设置面板、各个对话框，以及右键菜单弹出时。命令为 `PROJECT_DIR/replica/bin/ax dump BUNDLE_ID > PROJECT_DIR/replica/evidence/ax/original/<状态>.txt`。也可以用 AppleScript 或 A 的公开接口补充。
+- **AX 清点**：启动 A，在每个能到达的状态下导出完整的 AX 树：主窗口、打开文档后、每个设置面板、各个对话框，以及右键菜单弹出时。每个状态先登记到功能清单的 `states`（名称和到达方式），导出文件填进它的 `dumps`。命令为 `PROJECT_DIR/replica/bin/ax dump BUNDLE_ID > PROJECT_DIR/replica/evidence/ax/original/<状态>.txt`。也可以用 AppleScript 或 A 的公开接口补充。
 - **实际操作**：布局、自绘控件、拖放、动效等 AX 读不到的内容，通过实际画面和交互检查。
 - **外部资料**：帮助文档、官网和版本说明里提到的功能，先登记为待验证。
 
-按 ledger.md 的入口类别登记每个入口。AX 能读到的入口，`path` 从 A 的导出中原样复制。菜单之外，还要检查文件关联、URL scheme、系统服务、通知、权限被拒绝时的表现、撤销重做、多窗口、首次启动、退出和重启恢复。系统标准菜单项可以注明“由框架提供”，同时检查它的实际行为；有业务逻辑的入口都登记为功能。确认 A 没有某类入口时，在 `absent_entry_kinds` 写明依据。
+按 ledger.md 的入口类别登记每个入口。AX 能读到的入口，`path` 从 A 的导出中原样复制；标签随文档或数据变化的段（文档窗口标题、最近打开的文件等）写成 `[*]`，规则见 ledger.md。菜单之外，还要检查文件关联、URL scheme、系统服务、通知、权限被拒绝时的表现、撤销重做、多窗口、首次启动、退出和重启恢复。系统标准菜单项可以注明“由框架提供”，同时检查它的实际行为；有业务逻辑的入口都登记为功能。确认 A 没有某类入口时，在 `absent_entry_kinds` 写明依据。
 
-清点完成的标准是 `ledger_check.py` 的输出同时满足：`ax.uncovered` 为 0（A 的导出中每个可操作元素都已登记，`--uncovered` 列出全部未登记项），`clues.unmapped` 为空，`entry_kinds.unchecked` 为空。
+清点完成的标准是 `ledger_check.py` 的输出同时满足：`states` 中每个状态都有导出，`ax.uncovered` 为 0（A 的导出中每个可操作元素都已登记，`--uncovered` 列出全部未登记项），`clues.unmapped` 为空，`entry_kinds.unchecked` 为空。
 
 ### 4. 调查行为
 
@@ -125,7 +127,7 @@ python3 "$SKILL_DIR/scripts/state_diff.py" diff PROJECT_DIR before after
 
 - 架构依据已验证的行为来选。原生界面通常用 SwiftUI + AppKit；复杂编辑器等场景有更合适的技术栈时直接采用。B 的内部结构可以和 A 不同，交互习惯和视觉风格与 A 保持一致。
 - 使用 Build macOS Apps 时，读取当前可用的相关 Skills，例如 `build-run-debug`、`swiftpm-macos`、`appkit-interop`、`window-management`。用其他技术栈时，建立同等的构建、启动、日志和测试入口。
-- 可以使用系统框架、开源库、CLI 工具等可合法使用的组件，在 `reference-manifest.json` 记录来源、版本、许可和修改。
+- 可以使用系统框架、开源库、CLI 工具等可合法使用的组件，开源组件按包名和版本从上游获取，在 `reference-manifest.json` 记录来源、版本、许可和修改。A 的代码（反编译结果、从包里提取的 JS 和脚本）只作分析材料，不进入 B。
 - B 的核心功能全部由交付源码和声明的依赖实现。B 运行时不调用 A，不嵌入 A 的专有核心二进制，也不用截图回放代替功能。
 - B 的 `.app` 文件名、`CFBundleName` 和 `CFBundleDisplayName` 都用 B 的名称，并使用自己的 bundle identifier、配置目录和数据目录。建立可重复的构建和启动命令，每次测试前确认运行的是刚构建的 B。
 - A 的试用、购买、激活和更新检查属于 A 自身的商业流程。B 不实现这些流程，也不显示 A 的许可状态；对应入口在 inventory 中用 `skip` 写明。
@@ -136,14 +138,15 @@ python3 "$SKILL_DIR/scripts/state_diff.py" diff PROJECT_DIR before after
 ### 6. 对照验证
 
 1. 给 A 和 B 相同的输入和起始状态，比较界面、快捷键、状态变化、输出文件、错误表现、持久化和重启恢复。场景格式和比较方法见 ledger.md。
-2. `script` 场景用 `python3 "$SKILL_DIR/scripts/scenario_run.py" PROJECT_DIR S-001` 在 A 和 B 上各运行一次。运行记录写进 `evidence/runs/`，输出里的 `run` 证据分别填进场景的 `original` 和 `replica`。
+2. `script` 场景用 `python3 "$SKILL_DIR/scripts/scenario_run.py" PROJECT_DIR S-001` 在 A 和 B 上各运行一次。运行记录写进 `evidence/runs/`，输出里的 `run` 证据分别填进场景的 `original` 和 `replica`。`compare` 中内容不同或只在一侧出现的文件，修复 B，或按 A 的行为证据在场景的 `normalization` 写明比较规则。B 重新构建后用 `--side replica` 只运行 B，运行器和 A 一侧最近一次成功的运行比较。
 3. 发现差异时，先保存能复现的失败场景，修复后重跑这个场景和受影响的场景。用户反馈的差异也登记进同一份清单，并触发回归。
 4. 反复调查和修正，直到所有能访问的功能都验证过。
-5. 按 reference-app.md 验收 B 的独立运行：从交付源码构建，在没有 A、没有 A 的私有数据、也没有调查工具的干净 macOS 环境中运行，加载测试数据、重置状态并重放场景。`independence` 只在干净环境中实际验收过才标为 `passed`；在开发机上做的检查写进它的 `notes`。
+5. 场景全部通过或阻塞后，按 reference-app.md 填写 `fidelity` 和 `reset` 的验收结果；交付前两项都要是 `passed`。
+6. 按 reference-app.md 验收 B 的独立运行：从交付源码构建，在没有 A、没有 A 的私有数据、也没有调查工具的干净 macOS 环境中运行，加载测试数据、重置状态并重放场景。`independence` 只在干净环境中实际验收过才标为 `passed`；在开发机上做的检查写进它的 `notes`。
 
 ### 7. 冻结并交付
 
-1. 按 reference-app.md 填完 `reference-manifest.json` 并冻结版本：把 B 的 `.app` 打成归档，记下源码修订、归档路径和 SHA-256。之后再修改 B，就产生新版本。
+1. 按 reference-app.md 填完 `reference-manifest.json` 并冻结版本：把最后一轮场景运行所用的 B 的 `.app` 打成归档，记下源码修订、归档路径和 SHA-256。之后再修改 B，就产生新版本，重跑场景后重新冻结。
 2. 运行 `python3 "$SKILL_DIR/scripts/ledger_check.py" PROJECT_DIR --final`，修正全部错误。它检查记录是否完整；B 是否与 A 等价、能否独立运行，以第 6 步的实际结果为准。
-3. 交付：可运行的 `.app`、完整源码、构建和启动方法、测试与重置说明、功能覆盖统计、阻塞项和已知差异。覆盖统计取自 `--final` 的输出（入口、AX 覆盖、静态线索、功能和场景）。有 `blocked` 功能时，明确说明这是带阻塞的交付，并列出阻塞项。
+3. 交付：可运行的 `.app`、完整源码、构建和启动方法、测试与重置说明、功能覆盖统计、阻塞项和已知差异。覆盖统计取自 `--final` 的输出（入口、AX 覆盖、静态线索、功能和场景）。有 `blocked` 功能时，明确说明这是带阻塞的交付，并列出阻塞项；`independence` 不是 `passed` 时，说明尚未在干净环境中验收。
 4. 打包、公证和发布在用户要求时执行。

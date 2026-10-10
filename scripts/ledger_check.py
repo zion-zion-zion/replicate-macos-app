@@ -7,7 +7,9 @@ import re
 from collections import Counter
 from pathlib import Path
 
-SCHEMA_VERSION = 5
+from scenario_run import tree_sha256
+
+SCHEMA_VERSION = 6
 MANIFEST_SCHEMA_VERSION = 2
 ENTRY_KINDS = (
     "menu", "context_menu", "toolbar", "window", "settings", "shortcut", "document_type",
@@ -35,6 +37,9 @@ AX_INTERACTIVE = {"MenuItem", "Button", "CheckBox", "RadioButton", "PopUpButton"
 AX_DATA_CONTAINERS = {"Table", "Outline", "List", "Browser", "Grid", "Row", "Cell", "Column"}
 AX_FRAMEWORK_SUBROLES = {"AXCloseButton", "AXMinimizeButton", "AXZoomButton", "AXFullScreenButton"}
 UNCOVERED_SAMPLE = 20
+WILDCARD = "[*]"
+COMPARE_KINDS = (("different", "两侧内容不同"), ("only_original", "只在 A 一侧出现"),
+                 ("only_replica", "只在 B 一侧出现"))
 
 
 def nonempty_text(value):
@@ -78,6 +83,26 @@ def split_ax_path(path):
 
 def ax_role(segment):
     return re.match(r"[^\[#]*", segment).group(0)
+
+
+def segment_matches(pattern, segment):
+    # Role[*] 匹配同一角色下任意带标签的段，包括带 #序号 的重复段。
+    if not pattern.endswith(WILDCARD):
+        return pattern == segment
+    role = pattern[:-len(WILDCARD)]
+    return ax_role(segment) == role and segment[len(role):].startswith("[")
+
+
+def path_matches(pattern, path, prefix=False):
+    # prefix 为 True 时 pattern 只需匹配 path 开头的若干段，skip 入口据此覆盖子元素。
+    wanted, actual = split_ax_path(pattern), split_ax_path(path)
+    if len(actual) < len(wanted) or (not prefix and len(actual) != len(wanted)):
+        return False
+    return all(segment_matches(item, segment) for item, segment in zip(wanted, actual))
+
+
+def ax_path_known(path, ax_paths):
+    return path in ax_paths or (WILDCARD in path and any(path_matches(path, known) for known in ax_paths))
 
 
 def ax_header(path):
@@ -142,6 +167,8 @@ class Checker:
         self.root = root
         self.original_id = original_id
         self.replica_id = replica_id
+        # 交付前检查时为 reference.artifact_path 的内容哈希，B 一侧的 run 需要与它一致。
+        self.replica_tree = None
         self.errors = []
 
     def origin(self, owner, item, side, scenario=None):
@@ -232,7 +259,7 @@ class Checker:
                 continue
             self.mapping(owner, item, feature_ids)
             path = item["path"]
-            if ax_paths and AX_PATH.match(path) and path not in ax_paths:
+            if ax_paths and AX_PATH.match(path) and not ax_path_known(path, ax_paths):
                 self.errors.append(f"{owner}: AX 路径不在原版 A 的任何 AX 导出中 {path}")
         keys = Counter((str(item.get("kind")), str(item.get("path"))) for item in items)
         for (kind, path), count in sorted(keys.items()):
@@ -252,6 +279,28 @@ class Checker:
         for (source, name), count in sorted(keys.items()):
             if count > 1:
                 self.errors.append(f"clues: 线索重复 {source} {name}")
+
+    def states(self, items, app, final, ax_unavailable):
+        for index, item in enumerate(items):
+            owner = item.get("id", f"states[{index}]")
+            if not re.fullmatch(r"ST-\d{3,}", str(item.get("id"))):
+                self.errors.append(f"{owner}: id 格式应为 ST-001")
+            if not nonempty_text(item.get("name")) or not nonempty_text(item.get("reach")):
+                self.errors.append(f"{owner}: 状态需要 name 和 reach（到达方式）")
+            dumps = item.get("dumps")
+            if not text_list(dumps):
+                self.errors.append(f"{owner}: dumps 必须是 AX 导出的路径数组")
+                continue
+            for path in dumps:
+                target = self.root / path
+                header = ax_header(target) if target.is_file() else None
+                if header is None:
+                    self.errors.append(f"{owner}: dumps 需要 ax dump 的逐行输出 {path}")
+                elif (header.get("bundle_id"), header.get("version"), header.get("build")) != \
+                        (app.get("bundle_id"), app.get("version"), app.get("build")):
+                    self.errors.append(f"{owner}: {path} 不是功能清单记录的原版 A 的 AX 导出")
+            if final and ax_unavailable is None and not dumps:
+                self.errors.append(f"{owner}: 交付前每个状态需要至少一份 A 的 AX 导出")
 
     def feature(self, item, entry_count):
         owner = item.get("id", "<缺少 id>")
@@ -288,7 +337,7 @@ class Checker:
         self.evidence(owner, value.get("evidence"), require_file, side, scenario)
 
     def runs(self, owner, value, side, script_sha):
-        # 通过的 script 场景，每一侧都要有当前脚本版本成功运行的记录。
+        # 返回当前脚本在这一侧成功运行的 run 记录；B 一侧的记录还要带 compare，交付前还要对应当前的 B 构建。
         evidence = value.get("evidence") if isinstance(value, dict) else None
         for item in evidence if isinstance(evidence, list) else []:
             if not isinstance(item, dict) or item.get("kind") != "run" or not nonempty_text(item.get("path")):
@@ -298,10 +347,25 @@ class Checker:
                 continue
             run = json.loads(path.read_text(encoding="utf-8"))
             if (isinstance(run, dict) and run.get("side") == side and run.get("exit_code") == 0
-                    and run.get("script_sha256") == script_sha):
-                return
+                    and run.get("script_sha256") == script_sha
+                    and (side != "replica" or (isinstance(run.get("compare"), dict) and (
+                        self.replica_tree is None or run.get("app_sha256") == self.replica_tree)))):
+                return run
+        extra = ""
+        if side == "replica":
+            extra = "；B 一侧的 run 需要带 compare（与 A 一侧一起运行，或在 A 一侧已有当前脚本的成功运行后单独运行）"
+            if self.replica_tree is not None:
+                extra += "，交付前还要来自当前的 reference.artifact_path 构建"
         self.errors.append(f"{owner}: 通过的 script 场景需要当前脚本在 {side} 一侧成功运行的 run 证据"
-                           f"（用 scenario_run.py 生成）")
+                           f"（用 scenario_run.py 生成）{extra}")
+        return None
+
+    def compared(self, owner, compare, normalization):
+        # 两侧输出不同或只在一侧出现的文件，需要在 normalization 写明按什么规则视为一致。
+        for key, label in COMPARE_KINDS:
+            for name in compare.get(key, []):
+                if name not in normalization:
+                    self.errors.append(f"{owner}: compare 中 {name} {label}；修复差异，或在 normalization 写明比较规则")
 
     def scenario(self, item, feature_ids):
         owner = item.get("id", "<缺少 id>")
@@ -331,6 +395,11 @@ class Checker:
                     self.errors.append(f"{owner}: fixture 不存在 {fixture}")
         if not text_list(item.get("differences")):
             self.errors.append(f"{owner}: differences 必须是文本数组")
+        normalization = item.get("normalization", {})
+        if not isinstance(normalization, dict) or not all(
+                nonempty_text(key) and nonempty_text(value) for key, value in normalization.items()):
+            self.errors.append(f"{owner}: normalization 需要是「输出文件: 比较规则」的对象")
+            normalization = {}
         script, script_sha = item.get("script"), None
         if kind == "script" or script is not None:
             target = self.root / str(script)
@@ -340,10 +409,11 @@ class Checker:
                 self.errors.append(f"{owner}: 脚本不可执行 {script}")
             else:
                 script_sha = sha256(target)
-        outputs = status == "passed" and kind in ("gui", "script")
+        passed = status == "passed"
         scenario_id = item.get("id")
-        self.side(f"{owner}.original", item.get("original"), outputs, "original", scenario_id)
-        self.side(f"{owner}.replica", item.get("replica"), outputs, "replica", scenario_id)
+        self.side(f"{owner}.original", item.get("original"), passed and kind in ("gui", "script"),
+                  "original", scenario_id)
+        self.side(f"{owner}.replica", item.get("replica"), passed, "replica", scenario_id)
         if status == "passed":
             if item.get("differences"):
                 self.errors.append(f"{owner}: 通过的场景不能有未解决的 differences")
@@ -356,8 +426,10 @@ class Checker:
                 self.errors.append(f"{owner}: 通过的场景需要原版 A 的运行时证据"
                                    f"（{'/'.join(RUNTIME_EVIDENCE)}），静态线索不能作为 A 的结果")
             if kind == "script" and script_sha is not None:
-                for side in ("original", "replica"):
-                    self.runs(f"{owner}.{side}", item.get(side), side, script_sha)
+                self.runs(f"{owner}.original", item.get("original"), "original", script_sha)
+                run = self.runs(f"{owner}.replica", item.get("replica"), "replica", script_sha)
+                if run is not None:
+                    self.compared(owner, run["compare"], normalization)
         if status == "failed" and not item.get("differences"):
             self.errors.append(f"{owner}: 失败的场景需要写明 differences")
         self.blocker(owner, item, status == "blocked")
@@ -407,11 +479,19 @@ def ax_coverage(checker, ledger, inventory, list_all):
     # skip 项连同其下的子元素一起视为已登记，例如系统提供的「服务」子菜单。
     skipped = tuple(f"{item['path']} > " for item in inventory
                     if "skip" in item and isinstance(item.get("path"), str))
-    uncovered = sorted(path for path in interactive - registered if not path.startswith(skipped))
+    wildcards = {}
+    for item in inventory:
+        path = item.get("path")
+        if isinstance(path, str) and WILDCARD in path:
+            wildcards[path] = {element for element in interactive
+                               if path_matches(path, element, prefix="skip" in item)}
+    matched = set().union(*wildcards.values())
+    uncovered = sorted(path for path in interactive - registered - matched if not path.startswith(skipped))
     entries = [{"kind": draft_kind(path), "path": path} for path in uncovered]
     summary = {"dumps": dumps, "interactive": len(interactive),
                "covered": len(interactive) - len(uncovered), "uncovered": len(uncovered),
-               "uncovered_entries": entries if list_all else entries[:UNCOVERED_SAMPLE]}
+               "uncovered_entries": entries if list_all else entries[:UNCOVERED_SAMPLE],
+               "wildcards": {path: len(elements) for path, elements in sorted(wildcards.items())}}
     return all_paths, uncovered, summary
 
 
@@ -439,6 +519,10 @@ def manifest_checks(checker, manifest, ledger, final):
                "verification": statuses, "frozen": bool(freeze.get("artifact_sha256"))}
     if not final:
         return summary
+    # independence 需要干净环境，允许保持 pending，交付时向用户说明。
+    for name in ("fidelity", "reset"):
+        if statuses[name] != "passed":
+            checker.errors.append(f"reference-manifest.verification.{name}: 交付前需要 passed")
     owner = "reference-manifest.reference"
     for key in ("name", "bundle_id", "artifact_path", "build_command", "launch_command", "reset_command"):
         if not nonempty_text(reference.get(key)):
@@ -484,12 +568,16 @@ def check(root, final, list_uncovered=False):
     checker.original_id = app.get("bundle_id")
     if isinstance(manifest, dict) and isinstance(manifest.get("reference"), dict):
         checker.replica_id = manifest["reference"].get("bundle_id")
+        artifact = manifest["reference"].get("artifact_path")
+        if final and nonempty_text(artifact) and (root.parent / artifact / "Contents" / "Info.plist").is_file():
+            checker.replica_tree = tree_sha256(root.parent / artifact)
 
     inventory = objects(checker, "inventory", ledger.get("inventory"))
     clues = objects(checker, "clues", ledger.get("clues", []))
+    states = objects(checker, "states", ledger.get("states", []))
     features = objects(checker, "features", ledger.get("features"))
     scenarios = objects(checker, "scenarios", scenario_file.get("scenarios"))
-    for name, values in (("features", features), ("scenarios", scenarios)):
+    for name, values in (("states", states), ("features", features), ("scenarios", scenarios)):
         ids = Counter(item.get("id") for item in values)
         for duplicate in sorted(key for key, count in ids.items() if count > 1):
             checker.errors.append(f"{name}: ID 重复 {duplicate}")
@@ -542,6 +630,7 @@ def check(root, final, list_uncovered=False):
     ax_unavailable = ledger.get("ax_unavailable")
     if ax_unavailable is not None and not nonempty_text(ax_unavailable):
         checker.errors.append("ax_unavailable: 需要写明 AX 无法读取原版 A 的原因")
+    checker.states(states, app, final, ax_unavailable)
 
     reference = (manifest_checks(checker, manifest, ledger, final)
                  if isinstance(manifest, dict) else None)
@@ -561,6 +650,8 @@ def check(root, final, list_uncovered=False):
         if not ax_summary["dumps"] and ax_unavailable is None:
             checker.errors.append("交付前需要原版 A 的 AX 导出（ax dump 的逐行输出，放在 evidence/ 下）；"
                                   "AX 确实读不到 A 时在 ax_unavailable 写明原因")
+        if not states:
+            checker.errors.append("交付前需要在 states 列出 A 的各个界面状态及到达方式")
         if uncovered:
             checker.errors.append(f"A 的 AX 导出中有 {len(uncovered)} 个可操作元素没有登记到 inventory；"
                                   "用 --uncovered 列出全部")
@@ -574,6 +665,8 @@ def check(root, final, list_uncovered=False):
                       "mapped": sum(1 for item in inventory if "feature" in item),
                       "skipped": sum(1 for item in inventory if "skip" in item)},
         "ax": ax_summary,
+        "states": {"total": len(states),
+                   "with_dump": sum(1 for item in states if text_list(item.get("dumps"), allow_empty=False))},
         "clues": {"required": None if required is None else len(required),
                   "mapped": sum(1 for item in clues if "feature" in item),
                   "skipped": sum(1 for item in clues if "skip" in item),

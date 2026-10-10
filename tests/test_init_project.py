@@ -55,11 +55,12 @@ class InitializationTests(unittest.TestCase):
         self.assertTrue((self.root / "scenarios").is_dir())
 
         ledger = self.read("feature-ledger.json")
-        self.assertEqual(ledger["schema_version"], 5)
+        self.assertEqual(ledger["schema_version"], 6)
         self.assertEqual(ledger["app"]["bundle_id"], "org.example.synthetic")
         self.assertTrue(ledger["macos"]["version"])
         self.assertEqual(ledger["clues"], [])
-        self.assertEqual(self.read("scenarios.json"), {"schema_version": 5, "scenarios": []})
+        self.assertEqual(ledger["states"], [])
+        self.assertEqual(self.read("scenarios.json"), {"schema_version": 6, "scenarios": []})
 
         manifest = self.read("reference-manifest.json")
         self.assertEqual(manifest["schema_version"], 2)
@@ -76,6 +77,7 @@ class InitializationTests(unittest.TestCase):
         self.assertTrue(progress.startswith("# 复刻进度"))
         self.assertIn("org.example.synthetic", progress)
         self.assertIn("复刻版 B：Synthetic-replicate", progress)
+        self.assertIn("界面语言：", progress)
 
     def test_replica_name_prefers_display_name(self):
         self.change_info(CFBundleDisplayName="Synthetic Pro")

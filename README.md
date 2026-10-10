@@ -74,7 +74,7 @@ python3 scripts/ledger_check.py PROJECT_DIR --final               # 冻结后的
 - 重复运行 `init_project.py` 只补建缺失的文件，已有记录保持不变。原版的路径、bundle identifier 或版本与已有记录不同时，它报错退出，避免混用不同版本的证据。
 - AX 工具编译失败时报告为 `unavailable`，其余记录照常创建。`ax dump` 输出的第一行记录被导出 App 的身份，`ledger_check.py` 据此区分原版和复刻版的导出。
 - `ledger_check.py` 检查记录的结构、关联、原版 AX 元素和包内组件的登记情况，以及证据是否来自对应的 App；复刻版的实际表现另外验收。
-- `scenario_run.py` 运行前核对两个 `.app` 的身份，每次运行的退出码、脚本哈希和输出文件写入 `replica/evidence/runs/`。
+- `scenario_run.py` 运行前核对两个 `.app` 的身份，每次运行的退出码、脚本哈希、复刻版的内容哈希和输出文件写入 `replica/evidence/runs/`；交付前检查要求通过的场景在复刻版一侧对应当前构建。
 
 运行仓库测试（使用合成 App 和临时目录，不需要原版 App）：
 

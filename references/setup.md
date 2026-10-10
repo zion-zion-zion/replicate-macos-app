@@ -22,7 +22,7 @@
    - 插件：从 `codex plugin list --json --available` 找到插件，未安装时执行 `codex plugin add`。
    - REA：先用 `rea setup --client codex --dry-run` 生成安装计划，确认计划只包含配置 Codex 和安装 REA Skill，再正式执行，最后用 `rea doctor` 复核。
 2. 查看安装器输出里每一项的状态。部分失败时保留成功的项，只修复当前工作需要的失败项；已有可用的替代工具时直接继续。
-3. 把需要用户亲自完成的操作（见下文表格）写进 `progress.md`，一次性告诉用户。
+3. 把需要用户亲自完成的操作（见下文表格）一次性告诉用户；已有复刻项目时同时写进 `progress.md`。
 4. 用户重启或重连 Codex、加载新配置后，回到 SKILL.md 第 2 步，对要用的工具做真实调用。
 
 只检查、不安装时运行 `bootstrap.py --check`。它不写任何客户端配置，但第一次运行会把 `rea-agents` 下载到 npm 缓存。
