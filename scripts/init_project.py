@@ -6,7 +6,8 @@ import subprocess
 import sys
 from pathlib import Path
 
-SCHEMA_VERSION = 4
+SCHEMA_VERSION = 5
+MANIFEST_SCHEMA_VERSION = 2
 AX_SOURCE = Path(__file__).resolve().parent / "ax.swift"
 PROGRESS = """# 复刻进度
 
@@ -67,7 +68,7 @@ def build_ax(root):
 
 def reference_manifest(identity, replica_name):
     return {
-        "schema_version": 1,
+        "schema_version": MANIFEST_SCHEMA_VERSION,
         "role": "reference_app_construction",
         "created_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
         "original": identity,
@@ -85,7 +86,7 @@ def reference_manifest(identity, replica_name):
         },
         "freeze": {
             "reference_version": None, "frozen_at": None,
-            "source_revision": None, "artifact_sha256": None,
+            "source_revision": None, "artifact": None, "artifact_sha256": None,
         },
     }
 
@@ -107,14 +108,14 @@ def initialize(project_dir, app, skip_ax=False):
             if old is not None and old != identity.get(key):
                 raise ValueError(f"已有项目的原版 {key} 不一致；请使用独立项目或明确迁移原版版本。")
     macos = macos_identity()
-    for name in ("evidence", "scenarios"):
+    for name in ("evidence/ax/original", "scenarios"):
         (root / name).mkdir(parents=True, exist_ok=True)
     manifest = reference_manifest(identity, replica_name)
     items = {
         ".gitignore": "bin/\n",
         "feature-ledger.json": json.dumps(
             {"schema_version": SCHEMA_VERSION, "app": identity, "macos": macos,
-             "inventory": [], "absent_entry_kinds": {}, "features": []},
+             "inventory": [], "clues": [], "absent_entry_kinds": {}, "features": []},
             ensure_ascii=False, indent=2) + "\n",
         "scenarios.json": json.dumps(
             {"schema_version": SCHEMA_VERSION, "scenarios": []}, indent=2) + "\n",

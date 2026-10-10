@@ -10,6 +10,7 @@ let usage = """
 
 元素路径由 " > " 连接的段组成，段写作 Role[标签] 或 Role，兄弟重复时追加 #序号；
 dump 输出的 path 可以原样传给 perform 和 --root。没有 --out 和 --flat 时，逐行输出到标准输出。
+逐行输出的第一行以 "# ax-dump " 开头，后接记录 App 身份和导出时间的 JSON。
 """
 
 let attributeNames = [
@@ -431,14 +432,23 @@ func dump(_ options: Options) {
         let items = roots(app)
         tree = zip(segments(items), items).map { dumper.node($0.1.0, $0.1.1, $0.0, 0, nil) }
     }
-    let report: [String: Any] = [
+    let info = running.bundleURL.flatMap { Bundle(url: $0)?.infoDictionary } ?? [:]
+    let identity: [String: Any] = [
         "bundle_id": options.bundleID, "pid": Int(running.processIdentifier),
         "app_path": (running.bundleURL?.path).map { $0 as Any } ?? NSNull(),
+        "version": info["CFBundleShortVersionString"] ?? NSNull(),
+        "build": info["CFBundleVersion"] ?? NSNull(),
         "root": options.root.map { $0 as Any } ?? NSNull(),
+        "taken_at": ISO8601DateFormatter().string(from: Date()),
+    ]
+    let report = identity.merging([
         "frames": options.frames ? "窗口为屏幕坐标，窗口内元素相对所在窗口左上角" : "未记录",
         "node_count": dumper.count, "roots": tree,
-    ]
-    let flat = dumper.lines.joined(separator: "\n") + "\n"
+    ]) { current, _ in current }
+    let header = try! JSONSerialization.data(withJSONObject: identity,
+                                             options: [.sortedKeys, .withoutEscapingSlashes])
+    let flat = "# ax-dump " + String(decoding: header, as: UTF8.self) + "\n"
+        + dumper.lines.joined(separator: "\n") + "\n"
     if let out = options.out {
         let data = try! JSONSerialization.data(withJSONObject: report,
                                                options: [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes])

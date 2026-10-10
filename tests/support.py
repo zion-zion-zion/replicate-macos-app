@@ -19,13 +19,14 @@ def run_script(name, *args, env=None):
                           env=None if env is None else {**os.environ, **env})
 
 
-def make_app(base, bundle_id="org.example.synthetic", version="1.0", build="1", extra=None):
-    app = Path(base) / "Synthetic.app"
+def make_app(base, bundle_id="org.example.synthetic", version="1.0", build="1", extra=None,
+             name="Synthetic"):
+    app = Path(base) / f"{name}.app"
     (app / "Contents" / "MacOS").mkdir(parents=True, exist_ok=True)
     # 主程序复制系统自带的 Mach-O，otool 和 codesign 可以正常读取
-    shutil.copy("/usr/bin/true", app / "Contents" / "MacOS" / "Synthetic")
-    info = {"CFBundleIdentifier": bundle_id, "CFBundleName": "Synthetic",
-            "CFBundleExecutable": "Synthetic", "CFBundleShortVersionString": version,
+    shutil.copy("/usr/bin/true", app / "Contents" / "MacOS" / name)
+    info = {"CFBundleIdentifier": bundle_id, "CFBundleName": name,
+            "CFBundleExecutable": name, "CFBundleShortVersionString": version,
             "CFBundleVersion": build, **(extra or {})}
     (app / "Contents" / "Info.plist").write_bytes(plistlib.dumps(info))
     return app

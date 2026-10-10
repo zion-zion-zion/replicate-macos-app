@@ -65,13 +65,16 @@ npx skills add https://github.com/zion-zion-zion/replicate-macos-app --skill rep
 
 ```bash
 python3 scripts/init_project.py PROJECT_DIR --app-path APP_PATH   # 初始化记录；加 --skip-ax 跳过 AX 工具编译
-python3 scripts/ledger_check.py PROJECT_DIR                       # 检查记录的结构
-python3 scripts/ledger_check.py PROJECT_DIR --final               # 交付前检查
+python3 scripts/ledger_check.py PROJECT_DIR                       # 检查记录、AX 覆盖、静态线索和证据来源
+python3 scripts/ledger_check.py PROJECT_DIR --uncovered           # 列出原版 AX 导出中全部未登记的元素
+python3 scripts/scenario_run.py PROJECT_DIR S-001                 # 在原版和复刻版上各运行一次场景脚本
+python3 scripts/ledger_check.py PROJECT_DIR --final               # 冻结后的交付检查
 ```
 
 - 重复运行 `init_project.py` 只补建缺失的文件，已有记录保持不变。原版的路径、bundle identifier 或版本与已有记录不同时，它报错退出，避免混用不同版本的证据。
-- AX 工具编译失败时报告为 `unavailable`，其余记录照常创建。
-- `ledger_check.py` 检查记录的结构和关联，复刻版的实际表现另外验收。
+- AX 工具编译失败时报告为 `unavailable`，其余记录照常创建。`ax dump` 输出的第一行记录被导出 App 的身份，`ledger_check.py` 据此区分原版和复刻版的导出。
+- `ledger_check.py` 检查记录的结构、关联、原版 AX 元素和包内组件的登记情况，以及证据是否来自对应的 App；复刻版的实际表现另外验收。
+- `scenario_run.py` 运行前核对两个 `.app` 的身份，每次运行的退出码、脚本哈希和输出文件写入 `replica/evidence/runs/`。
 
 运行仓库测试（使用合成 App 和临时目录，不需要原版 App）：
 
@@ -79,7 +82,7 @@ python3 scripts/ledger_check.py PROJECT_DIR --final               # 交付前检
 python3 -m unittest discover -s tests -v
 ```
 
-- `ledger_check.py` 和 `bootstrap.py` 的测试与平台无关。
+- `ledger_check.py`、`scenario_run.py` 和 `bootstrap.py` 的测试与平台无关。
 - `init_project.py`、`bundle_scan.py` 和 `state_diff.py` 的测试调用 `sw_vers`、`codesign`、`otool`、`plutil`、`defaults` 等系统工具，只在 macOS 上运行；AX 编译测试还需要 Xcode Command Line Tools。不满足条件时这些测试会跳过。
 - 状态差分测试把 `HOME` 指向临时目录，每次使用新的 bundle identifier，不改动你的 `~/Library`。
 
@@ -124,6 +127,7 @@ rm -rf ~/.local/share/replicate-macos-app
 | [scripts/ax.swift](scripts/ax.swift) | 导出 AX 树、操作界面元素 |
 | [scripts/state_diff.py](scripts/state_diff.py) | 偏好设置和数据目录的快照与差分 |
 | [scripts/ledger_check.py](scripts/ledger_check.py) | 记录检查与交付前检查 |
+| [scripts/scenario_run.py](scripts/scenario_run.py) | 在原版和复刻版上运行场景脚本并保存运行记录 |
 | [tests/](tests/) | 各脚本的回归测试，`support.py` 提供合成 App 和脚本调用 |
 | [agents/openai.yaml](agents/openai.yaml) | Codex 中的展示与调用配置 |
 | [assets/icon.svg](assets/icon.svg) | Skill 图标 |
