@@ -148,6 +148,10 @@ class InitializationTests(unittest.TestCase):
         usage = subprocess.run([str(binary)], text=True, capture_output=True)
         self.assertEqual(usage.returncode, 1)
         self.assertIn("ax dump BUNDLE_ID", usage.stderr)
+        for args in (["--help"], ["-h"], ["dump", "--help"], ["perform", "-h"]):
+            help_text = subprocess.run([str(binary), *args], text=True, capture_output=True)
+            self.assertEqual(help_text.returncode, 0, args)
+            self.assertIn("ax dump BUNDLE_ID", help_text.stdout)
         self.assertEqual(self.initialize()["ax"]["status"], "reused")
 
 

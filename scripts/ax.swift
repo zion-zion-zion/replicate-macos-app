@@ -352,19 +352,42 @@ final class Dumper {
     }
 }
 
-func runningApp(_ options: Options) -> NSRunningApplication {
+// 个别 App 的 processIdentifier 为 -1，用它建的 AX 元素读不到任何属性，
+// 这时按可执行文件路径在进程表里找真实进程。
+func processIDs(of app: NSRunningApplication) -> [pid_t] {
+    if app.processIdentifier > 0 { return [app.processIdentifier] }
+    guard let executable = app.executableURL?.resolvingSymlinksInPath().path else {
+        fail("\(app.bundleIdentifier ?? "App") 的 pid 为 \(app.processIdentifier)，也没有可执行文件路径")
+    }
+    var pids = [pid_t](repeating: 0, count: Int(proc_listallpids(nil, 0)) + 64)
+    let count = proc_listallpids(&pids, Int32(pids.count * MemoryLayout<pid_t>.stride))
+    guard count >= 0 else { fail("读取进程列表失败：\(String(cString: strerror(errno)))") }
+    // PROC_PIDPATHINFO_MAXSIZE 是 4 * MAXPATHLEN，Swift 不导入这个宏。
+    var path = [CChar](repeating: 0, count: 4 * Int(MAXPATHLEN))
+    return pids.prefix(Int(count)).filter { pid in
+        pid > 0 && proc_pidpath(pid, &path, UInt32(path.count)) > 0 && String(cString: path) == executable
+    }
+}
+
+func runningApp(_ options: Options) -> (app: NSRunningApplication, pid: pid_t) {
     let apps = NSRunningApplication.runningApplications(withBundleIdentifier: options.bundleID)
-    if let pid = options.pid {
-        guard let app = apps.first(where: { $0.processIdentifier == pid }) else {
-            fail("\(options.bundleID) 没有 pid 为 \(pid) 的运行实例")
-        }
-        return app
-    }
     guard !apps.isEmpty else { fail("\(options.bundleID) 没有运行；先启动 App") }
-    guard apps.count == 1 else {
-        fail("\(options.bundleID) 有多个运行实例，用 --pid 指定：" + apps.map { "\($0.processIdentifier)" }.joined(separator: ", "))
+    var instances: [(app: NSRunningApplication, pid: pid_t)] = []
+    for app in apps {
+        for pid in processIDs(of: app) where !instances.contains(where: { $0.pid == pid }) {
+            instances.append((app, pid))
+        }
     }
-    return apps[0]
+    guard !instances.isEmpty else { fail("\(options.bundleID) 已登记为运行，但进程表里找不到它的可执行文件") }
+    let pids = instances.map { "\($0.pid)" }.joined(separator: ", ")
+    if let pid = options.pid {
+        guard let instance = instances.first(where: { $0.pid == pid }) else {
+            fail("\(options.bundleID) 没有 pid 为 \(pid) 的运行实例；运行中的 pid：\(pids)")
+        }
+        return instance
+    }
+    guard instances.count == 1 else { fail("\(options.bundleID) 有多个运行实例，用 --pid 指定：" + pids) }
+    return instances[0]
 }
 
 func requireTrust() {
@@ -395,6 +418,7 @@ func parse(_ arguments: [String], positional count: Int) -> Options {
         case "--out": options.out = next()
         case "--flat": options.flat = next()
         case "--no-frames": options.frames = false
+        case "-h", "--help": print(usage); exit(0)
         case let flag where flag.hasPrefix("--"): fail("未知选项 \(flag)\n\n" + usage)
         case let value: positional.append(value)
         }
@@ -414,8 +438,8 @@ func write(_ text: String, to path: String) {
 
 func dump(_ options: Options) {
     requireTrust()
-    let running = runningApp(options)
-    let app = AXUIElementCreateApplication(running.processIdentifier)
+    let (running, pid) = runningApp(options)
+    let app = AXUIElementCreateApplication(pid)
     AXUIElementSetMessagingTimeout(app, 5)
     let dumper = Dumper(options)
     let tree: [[String: Any]]
@@ -434,7 +458,7 @@ func dump(_ options: Options) {
     }
     let info = running.bundleURL.flatMap { Bundle(url: $0)?.infoDictionary } ?? [:]
     let identity: [String: Any] = [
-        "bundle_id": options.bundleID, "pid": Int(running.processIdentifier),
+        "bundle_id": options.bundleID, "pid": Int(pid),
         "app_path": (running.bundleURL?.path).map { $0 as Any } ?? NSNull(),
         "version": info["CFBundleShortVersionString"] ?? NSNull(),
         "build": info["CFBundleVersion"] ?? NSNull(),
@@ -460,8 +484,7 @@ func dump(_ options: Options) {
 
 func perform(_ options: Options) {
     requireTrust()
-    let running = runningApp(options)
-    let app = AXUIElementCreateApplication(running.processIdentifier)
+    let app = AXUIElementCreateApplication(runningApp(options).pid)
     AXUIElementSetMessagingTimeout(app, 5)
     let target = resolve(app, options.path!)
     let available = actions(target.element)
@@ -485,5 +508,6 @@ case "check":
     }
 case "dump": dump(parse(Array(arguments.dropFirst()), positional: 1))
 case "perform": perform(parse(Array(arguments.dropFirst()), positional: 2))
+case "-h", "--help": print(usage)
 default: fail(usage)
 }
