@@ -64,6 +64,7 @@ class InitializationTests(unittest.TestCase):
         self.assertEqual(manifest["schema_version"], 1)
         self.assertEqual(manifest["role"], "reference_app_construction")
         self.assertEqual(manifest["original"]["bundle_id"], "org.example.synthetic")
+        self.assertEqual(manifest["reference"]["name"], "Synthetic-replicate")
         for name in ("fidelity", "independence", "reset"):
             self.assertEqual(manifest["verification"][name]["status"], "pending")
         self.assertEqual(manifest["verification"]["known_differences"], [])
@@ -72,6 +73,13 @@ class InitializationTests(unittest.TestCase):
         progress = (self.root / "progress.md").read_text(encoding="utf-8")
         self.assertTrue(progress.startswith("# 复刻进度"))
         self.assertIn("org.example.synthetic", progress)
+        self.assertIn("复刻版 B：Synthetic-replicate", progress)
+
+    def test_replica_name_prefers_display_name(self):
+        self.change_info(CFBundleDisplayName="Synthetic Pro")
+        self.initialize("--skip-ax")
+        self.assertEqual(self.read("reference-manifest.json")["reference"]["name"],
+                         "Synthetic Pro-replicate")
 
     def test_old_project_only_gains_missing_manifest(self):
         self.initialize("--skip-ax")

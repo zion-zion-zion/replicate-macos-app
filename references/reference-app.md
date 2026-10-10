@@ -11,7 +11,7 @@
 | `role` | 固定为 `reference_app_construction` |
 | `original` | A 的路径、bundle identifier、名称、版本和构建号 |
 | `created_at` | 文件生成时间（UTC） |
-| `reference` | B 的名称、bundle identifier、源码目录与修订、构建产物、构建/启动/重置命令、fixtures 和依赖 |
+| `reference` | B 的名称（`init_project.py` 预填）、bundle identifier、源码目录与修订、构建产物、构建/启动/重置命令、fixtures 和依赖 |
 | `construction.methods` | 实际使用的方法、工具版本、用途和证据位置 |
 | `construction.components` | 使用的第三方组件或资源：来源、版本、使用依据和修改情况 |
 | `verification.fidelity` | B 与 A 行为对照的验收状态和证据 |

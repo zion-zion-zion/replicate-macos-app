@@ -15,7 +15,7 @@ PROGRESS = """# 复刻进度
 - 原版 A：{name} {version}（{build}），{bundle_id}
 - 路径：{path}
 - macOS：{macos_version}（{macos_build}）
-- 交付：拥有完整源码、可独立运行的复刻版 B
+- 复刻版 B：{replica_name}，拥有完整源码、可独立运行
 
 ## 当前阶段
 
@@ -65,14 +65,14 @@ def build_ax(root):
     return {"path": str(binary), "status": "built"}
 
 
-def reference_manifest(identity):
+def reference_manifest(identity, replica_name):
     return {
         "schema_version": 1,
         "role": "reference_app_construction",
         "created_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
         "original": identity,
         "reference": {
-            "name": None, "bundle_id": None, "source_dir": None,
+            "name": replica_name, "bundle_id": None, "source_dir": None,
             "source_revision": None, "artifact_path": None,
             "build_command": None, "launch_command": None, "reset_command": None,
             "fixtures": [], "dependencies": [],
@@ -95,6 +95,7 @@ def initialize(project_dir, app, skip_ax=False):
     if not (app / "Contents" / "Info.plist").is_file():
         raise ValueError(f"不是有效的 App bundle: {app}")
     identity = app_identity(app)
+    replica_name = f"{identity['name']}-replicate"
     root = Path(project_dir).expanduser().resolve() / "replica"
     ledger_path = root / "feature-ledger.json"
     if ledger_path.is_file():
@@ -108,7 +109,7 @@ def initialize(project_dir, app, skip_ax=False):
     macos = macos_identity()
     for name in ("evidence", "scenarios"):
         (root / name).mkdir(parents=True, exist_ok=True)
-    manifest = reference_manifest(identity)
+    manifest = reference_manifest(identity, replica_name)
     items = {
         ".gitignore": "bin/\n",
         "feature-ledger.json": json.dumps(
@@ -118,7 +119,8 @@ def initialize(project_dir, app, skip_ax=False):
         "scenarios.json": json.dumps(
             {"schema_version": SCHEMA_VERSION, "scenarios": []}, indent=2) + "\n",
         "reference-manifest.json": json.dumps(manifest, ensure_ascii=False, indent=2) + "\n",
-        "progress.md": PROGRESS.format(**identity, macos_version=macos["version"],
+        "progress.md": PROGRESS.format(**identity, replica_name=replica_name,
+                                       macos_version=macos["version"],
                                        macos_build=macos["build"]),
     }
     created, reused = [], []

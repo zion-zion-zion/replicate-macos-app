@@ -15,6 +15,8 @@ description: Use in Codex when the user wants to replicate (复刻) or rebuild a
 
 B 的源码是依据 A 的行为重新编写的实现，交付时这样向用户说明。
 
+B 默认命名为 `<A 的名称>-replicate`，A 的名称依次取 A 的 `CFBundleDisplayName`、`CFBundleName`、`.app` 文件名。例如 A 是 SQLiteFlow，B 就叫 SQLiteFlow-replicate。
+
 ## 运行环境
 
 本 Skill 目前只支持 Codex，并且要在 A 所在的 Mac 上运行。
@@ -53,14 +55,14 @@ B 的源码是依据 A 的行为重新编写的实现，交付时这样向用户
 ### 1. 确定目标和项目
 
 1. 用户已给出的 App、版本和项目位置直接使用。不知道目标时，只问 App 名称或路径，并解析到本机唯一的 `.app`。
-2. 用户没指定项目位置时，用当前空目录或已有的复刻项目；两者都没有时，在当前目录下新建一个项目子目录。
+2. 用户没指定项目位置时，用当前空目录或已有的复刻项目；两者都没有时，在当前目录下新建以 B 的名称命名的子目录。
 3. 初始化项目：
 
    ```bash
    python3 "$SKILL_DIR/scripts/init_project.py" PROJECT_DIR --app-path APP_PATH
    ```
 
-   它在 `replica/` 下建立功能清单、场景、`progress.md` 和 `reference-manifest.json`，并编译 AX 工具 `replica/bin/ax`。不需要 AX 时加 `--skip-ax`；AX 编译失败只影响这一个工具。已有项目会保留原文件，继续工作前先读 `progress.md`、功能清单、场景和 `reference-manifest.json`。
+   它在 `replica/` 下建立功能清单、场景、`progress.md` 和 `reference-manifest.json`（`reference.name` 预填为 B 的名称），并编译 AX 工具 `replica/bin/ax`。不需要 AX 时加 `--skip-ax`；AX 编译失败只影响这一个工具。已有项目会保留原文件，继续工作前先读 `progress.md`、功能清单、场景和 `reference-manifest.json`。
 4. 在 `progress.md` 补充 A 需要的权限、能访问到的功能和外部依赖（服务端、硬件等）。用户还没选定 A 时，优先推荐能独立运行、核心状态可控的 App；已选定的 A 依赖服务端或硬件时，逐项调查并登记。
 
 用户只要求准备工具时，按 setup.md 完成安装和连接核对，然后停止。
@@ -108,7 +110,7 @@ python3 "$SKILL_DIR/scripts/state_diff.py" diff PROJECT_DIR before after
 - 使用 Build macOS Apps 时，读取当前可用的相关 Skills，例如 `build-run-debug`、`swiftpm-macos`、`appkit-interop`、`window-management`。用其他技术栈时，建立同等的构建、启动、日志和测试入口。
 - 可以使用系统框架、开源库、CLI 工具等可合法使用的组件，在 `reference-manifest.json` 记录来源、版本、许可和修改。
 - B 的核心功能全部由交付源码和声明的依赖实现。B 运行时不调用 A，不嵌入 A 的专有核心二进制，也不用截图回放代替功能。
-- B 使用自己的 bundle identifier、配置目录和数据目录。建立可重复的构建和启动命令，每次测试前确认运行的是刚构建的 B。
+- B 的 `.app` 文件名、`CFBundleName` 和 `CFBundleDisplayName` 都用 B 的名称，并使用自己的 bundle identifier、配置目录和数据目录。建立可重复的构建和启动命令，每次测试前确认运行的是刚构建的 B。
 - 功能实现完成的标准：状态变化、文件读写、错误处理、持久化、撤销和恢复都是真实逻辑；按钮连到真实操作，数据来自真实状态，测试结果由实际运行产生。
 - A 依赖服务端时，B 按公开协议对接，或自建一个可控的后端，提供真实的状态、重置方法和测试数据，并记录与 A 的差异。账号、原厂服务、硬件、许可证或 entitlement 确实无法满足时，把对应功能标为 `blocked` 并写明原因。
 

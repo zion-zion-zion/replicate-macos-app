@@ -5,6 +5,7 @@
 - 复刻版覆盖原版的全部正常功能，状态变化、文件读写、错误处理和重启恢复都是真实实现。
 - 调查原版时，Codex 按具体问题选择方法：GUI 和辅助功能（AX）自动化、逆向分析、静态和动态分析、文件和网络观察、自写脚本，或请你提供信息。
 - 复刻版的源码是依据原版行为重新编写的实现。
+- 复刻版默认命名为 `原版名称-replicate`，例如 SQLiteFlow 的复刻版叫 SQLiteFlow-replicate；没有指定项目目录时，新建的项目目录也用这个名称。
 
 ## 运行要求
 
@@ -35,7 +36,7 @@ npx skills add https://github.com/zion-zion-zion/replicate-macos-app --skill rep
 
 ```text
 使用 $replicate-macos-app，完整复刻 /Applications/目标应用.app，
-把项目放到 ~/Projects/目标应用复刻。
+把项目放到 ~/Projects/目标应用-replicate。
 ```
 
 只准备工具：
