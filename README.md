@@ -72,13 +72,17 @@ python3 scripts/ledger_check.py PROJECT_DIR --final               # 交付前检
 - AX 工具编译失败时报告为 `unavailable`，其余记录照常创建。
 - `ledger_check.py` 检查记录的结构和关联，复刻版的实际表现另外验收。
 
-运行仓库测试（使用合成数据，不需要原版 App）：
+运行仓库测试（使用合成 App 和临时目录，不需要原版 App）：
 
 ```bash
 python3 -m unittest discover -s tests -v
 ```
 
-测试覆盖初始化、已有项目的保留、AX 工具不可用时继续，以及通用证据和交付前检查。原版的实际探索、AX 权限和复刻版的独立运行需要在真实 Mac 上验证。
+- `ledger_check.py` 和 `bootstrap.py` 的测试与平台无关。
+- `init_project.py`、`bundle_scan.py` 和 `state_diff.py` 的测试调用 `sw_vers`、`codesign`、`otool`、`plutil`、`defaults` 等系统工具，只在 macOS 上运行；AX 编译测试还需要 Xcode Command Line Tools。不满足条件时这些测试会跳过。
+- 状态差分测试把 `HOME` 指向临时目录，每次使用新的 bundle identifier，不改动你的 `~/Library`。
+
+原版的实际探索、AX 权限和复刻版的独立运行需要在真实 Mac 上验证。
 
 ## 卸载
 
@@ -119,6 +123,6 @@ rm -rf ~/.local/share/replicate-macos-app
 | [scripts/ax.swift](scripts/ax.swift) | 导出 AX 树、操作界面元素 |
 | [scripts/state_diff.py](scripts/state_diff.py) | 偏好设置和数据目录的快照与差分 |
 | [scripts/ledger_check.py](scripts/ledger_check.py) | 记录检查与交付前检查 |
-| [tests/test_workflow.py](tests/test_workflow.py) | 平台无关的回归测试 |
+| [tests/](tests/) | 各脚本的回归测试，`support.py` 提供合成 App 和脚本调用 |
 | [agents/openai.yaml](agents/openai.yaml) | Codex 中的展示与调用配置 |
 | [assets/icon.svg](assets/icon.svg) | Skill 图标 |
