@@ -24,6 +24,9 @@ def load_plist(path):
 
 def plist_file_as_json(path):
     # .strings 可能是旧式文本 plist，plistlib 不支持，用系统 plutil 转换。
+    # plutil 拒绝 0 字节输入，而 0 字节的 .strings 是一张空表。
+    if path.stat().st_size == 0:
+        return {}
     return json.loads(run(["plutil", "-convert", "json", "-o", "-", str(path)]))
 
 

@@ -96,6 +96,11 @@ class BundleScanTests(unittest.TestCase):
         self.assertEqual(strings["tables"], {"en.lproj/Localizable.strings":
                                              {"greeting": "Hello", "farewell": "Bye"}})
 
+    def test_empty_strings_file_is_empty_table(self):
+        (self.app / "Contents" / "Resources" / "en.lproj" / "Empty.strings").write_bytes(b"")
+        self.scan()
+        self.assertEqual(self.read("strings.json")["tables"]["en.lproj/Empty.strings"], {})
+
     def test_missing_app_stops(self):
         shutil.rmtree(self.app)
         proc = run_script("bundle_scan.py", self.project)
